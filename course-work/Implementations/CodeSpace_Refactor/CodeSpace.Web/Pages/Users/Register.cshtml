@@ -1,0 +1,75 @@
+﻿@page
+@{
+    Layout = "_Layout";
+}
+
+<h2 class="system-text">Register</h2>
+
+<form id="regForm">
+    <div class="grid">
+        <div class="row">
+            <div class="col-1">Username</div>
+            <div class="col-2"><input id="user" /></div>
+            <span id="uErr" class="field-validation-error"></span>
+        </div>
+
+        <div class="row">
+            <div class="col-1">Email</div>
+            <div class="col-2"><input id="mail" type="email" /></div>
+            <span id="eErr" class="field-validation-error"></span>
+        </div>
+
+        <div class="row">
+            <div class="col-1">Password</div>
+            <div class="col-2"><input id="pass" type="password" /></div>
+            <span id="pErr" class="field-validation-error"></span>
+        </div>
+
+        <div class="row">
+            <input type="submit" value="Register" />
+            <span id="authErr" class="field-validation-error"></span>
+        </div>
+    </div>
+</form>
+
+<script>
+    const api = 'https://localhost:64706/api/Auth/register';   // API port
+
+    document.getElementById('regForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        clearErrors();
+
+        const username = user().value.trim();
+        const email    = mail().value.trim();
+        const password = pass().value;
+
+        if (!username) return setErr('uErr', 'Required');
+        if (!email)    return setErr('eErr', 'Required');
+        if (!password) return setErr('pErr', 'Required');
+
+        const res = await fetch(api, {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({ username, email, password })
+        });
+
+        if (res.ok) {
+            const j = await res.json();
+            sessionStorage.setItem('jwt',  j.token);
+            sessionStorage.setItem('user', j.username);
+            sessionStorage.setItem('admin', j.isAdmin);
+            sessionStorage.setItem('userid', j.userId);
+            window.location = '/';
+        } else if (res.status === 409) {
+            setErr('uErr', 'Username already taken');
+        } else {
+            setErr('authErr', 'Registration failed');
+        }
+    });
+
+    function setErr(id, msg)   { document.getElementById(id).textContent = msg; }
+    function clearErrors()     { ['uErr','eErr','pErr','authErr'].forEach(id => setErr(id,'')); }
+    const user = () => document.getElementById('user');
+    const mail = () => document.getElementById('mail');
+    const pass = () => document.getElementById('pass');
+</script>

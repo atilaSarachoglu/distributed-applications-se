@@ -1,0 +1,56 @@
+﻿@*
+    _Layout.cshtml – front-end only
+*@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Just Girly Things</title>
+    <link href="~/css/site.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body>
+    <div class="header">
+        <a href="/" class="logo">
+            Just Girly Things
+            <span>By Girls, For Girls</span>
+        </a>
+
+        <div class="header-right">
+            <a id="buttonHome" href="/">Home</a>
+            <a id="buttonContact" href="/Contact">Contact</a>
+            <a id="buttonAbout" href="/About">About</a>
+
+            <!-- always render both; JS shows/hides -->
+            <a id="buttonLogin" href="/Users/Login">Log&nbsp;in/Register</a>
+            <a id="buttonLogout" href="#" style="display:none">Log&nbsp;out</a>
+        </div>
+    </div>
+
+    @RenderBody()
+
+    <script>
+        /* toggle Login / Logout based on JWT in sessionStorage */
+        document.addEventListener('DOMContentLoaded', () => {
+            const hasJwt = !!sessionStorage.getItem('jwt');
+
+            const loginBtn  = document.getElementById('buttonLogin');
+            const logoutBtn = document.getElementById('buttonLogout');
+
+            if (hasJwt) {
+                loginBtn.style.display  = 'none';
+                logoutBtn.style.display = 'inline';
+
+                logoutBtn.addEventListener('click', e => {
+                    e.preventDefault();
+                    sessionStorage.removeItem('jwt');
+                    sessionStorage.removeItem('user');
+                    window.location = '/';          // back to home (guest view)
+                });
+            } else {
+                logoutBtn.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

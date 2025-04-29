@@ -1,0 +1,102 @@
+﻿@page
+@{
+    Layout = "_Layout";
+}
+
+<div>
+    <p class="system-text">Login here:</p>
+
+    <!-- ===== LOGIN FORM ===== -->
+    <form id="loginForm">
+        <div class="grid">
+
+            <!-- username -->
+            <div class="row">
+                <div class="col-1">Username</div>
+                <div class="col-2">
+                    <input id="Username" name="Username" class="text-box single-line" />
+                </div>
+                <div>
+                    <span id="UsernameErr" class="field-validation-error"></span>
+                </div>
+            </div>
+
+            <!-- password -->
+            <div class="row">
+                <div class="col-1">Password</div>
+                <div class="col-2">
+                    <input id="Password" name="Password" type="password" class="text-box single-line" />
+                </div>
+                <div>
+                    <span id="PasswordErr" class="field-validation-error"></span>
+                </div>
+            </div>
+
+            <!-- auth-level error -->
+            <div class="row">
+                <div class="col-3">
+                    <span id="AuthErr" class="field-validation-error"></span>
+                </div>
+            </div>
+
+            <!-- submit -->
+            <div class="row">
+                <div class="col-3">
+                    <input type="submit" value="Login" />
+                </div>
+            </div>
+
+            <!-- summary -->
+            <div class="row">
+                <div class="col-3">
+                    <span id="SummaryErr" class="field-validation-error"></span>
+                </div>
+            </div>
+
+        </div>
+    </form>
+</div>
+
+<p class="system-text">
+    Don't have an account? <a href="Register">Make one here.</a>
+</p>
+
+<script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // grab values
+        const username = document.getElementById('Username').value.trim();
+        const password = document.getElementById('Password').value;
+
+        // simple client-side checks
+        clearErrors();
+        if (!username) { setError('UsernameErr', 'Required'); return; }
+        if (!password) { setError('PasswordErr', 'Required'); return; }
+
+        // call the API
+        const res = await fetch('https://localhost:64706/api/Auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        if (res.ok) {
+            const json = await res.json();
+            sessionStorage.setItem('jwt',  json.token);
+            sessionStorage.setItem('user', json.username);
+            sessionStorage.setItem('admin', json.isAdmin);
+            sessionStorage.setItem('userid', json.userId);
+            window.location = '/';               // go to feed
+        } else {
+            setError('AuthErr', 'Invalid username or password');
+        }
+    });
+
+    // helpers
+    function setError(id, msg)   { document.getElementById(id).textContent = msg; }
+    function clearErrors() {
+        ['UsernameErr','PasswordErr','AuthErr','SummaryErr']
+            .forEach(id => setError(id,''));
+    }
+</script>

@@ -1,0 +1,268 @@
+openapi: 3.0.3
+info:
+  title: Just Girly Things – API
+  description: >
+    **Курсова задача – Домашна работа №1**  
+    Пълна документация на услугите за малка социална мрежа.<br/>
+    Всички защитени крайни точки използват JWT (Bearer) авторизация.
+  version: "1.0.0"
+  contact:
+    name: Екип Just Girly Things
+servers:
+  - url: https://localhost:64706
+    description: Локален dev сървър (.NET 6 Kestrel)
+
+tags:
+  - name: Authentication
+    description: Регистрация и вписване
+  - name: Feed
+    description: Публична емисия и постове
+  - name: Replies
+    description: Отговори под пост
+
+paths:
+  /api/Auth/register:
+    post:
+      tags: [Authentication]
+      summary: Регистриране на нов потребител
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "200":
+          description: Успешна регистрация – връща JWT и данни на потребителя
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "409":
+          description: Потребителското име е заето
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/Auth/login:
+    post:
+      tags: [Authentication]
+      summary: Вписване
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Успешно вписване
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "401":
+          description: Невалидни данни за вход
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/Feed:
+    get:
+      tags: [Feed]
+      summary: Връща последните 20 поста (с брой лайкове и отговори)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PostDto" }
+    post:
+      tags: [Feed]
+      summary: Създаване на нов пост
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePostRequest" }
+      responses:
+        "201":
+          description: Създадено
+        "400":
+          description: Липсващо или невалидно съдържание
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/Feed/{postId}/like:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+    post:
+      tags: [Feed]
+      summary: Харесване на пост
+      security:
+        - BearerAuth: []
+      responses:
+        "204": { description: Харесано }
+        "400": { description: Вече е харесано }
+    delete:
+      tags: [Feed]
+      summary: Премахване на харесване
+      security:
+        - BearerAuth: []
+      responses:
+        "204": { description: Отхаресано }
+        "404": { description: Няма такъв лайк }
+
+  /api/Feed/{postId}:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+    delete:
+      tags: [Feed]
+      summary: Изтриване на пост (собственик или админ)
+      security:
+        - BearerAuth: []
+      responses:
+        "204": { description: Изтрито }
+        "403": { description: Без право за триене }
+        "404": { description: Постът не е намерен }
+
+  /api/Feed/{postId}/reply:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+    post:
+      tags: [Replies]
+      summary: Създаване на отговор
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateReplyRequest" }
+      responses:
+        "201": { description: Отговорът е създаден }
+        "400": { description: Липсващо съдържание }
+
+  /api/Replies/{replyId}:
+    parameters:
+      - $ref: "#/components/parameters/ReplyId"
+    delete:
+      tags: [Replies]
+      summary: Изтриване на отговор (собственик или админ)
+      security:
+        - BearerAuth: []
+      responses:
+        "204": { description: Изтрито }
+        "403": { description: Без право за триене }
+        "404": { description: Не е намерено }
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Използвайте JWT токена, върнат при `/api/Auth/login` или `/api/Auth/register`,
+        като стойност на `Authorization: Bearer <token>`.
+
+  parameters:
+    PostId:
+      name: postId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      description: Идентификатор на пост
+    ReplyId:
+      name: replyId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      description: Идентификатор на отговор
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [username, password, email]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+        password:
+          type: string
+          minLength: 4
+          maxLength: 64
+        email:
+          type: string
+          format: email
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+
+    LoginResponse:
+      type: object
+      properties:
+        token: { type: string, description: JWT Bearer токен }
+        username: { type: string }
+        isAdmin: { type: boolean }
+        userId: { type: integer }
+
+    CreatePostRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+
+    CreateReplyRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+
+    ReplyDto:
+      type: object
+      properties:
+        id: { type: integer }
+        postId: { type: integer }
+        userId: { type: integer }
+        userUsername: { type: string }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    PostDto:
+      type: object
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        userUsername: { type: string }
+        title: { type: string }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+        likes: { type: integer }
+        isLikedByMe: { type: boolean }
+        replies:
+          type: array
+          items: { $ref: "#/components/schemas/ReplyDto" }
+
+    Error:
+      type: object
+      properties:
+        message: { type: string }

@@ -1,0 +1,216 @@
+﻿@page
+@{
+    Layout = "_Layout";
+}
+
+<!-- ============ GUEST VIEW ============ -->
+<div id="guestView" style="display:none">
+    <p class="system-text">
+        Welcome to Just Girly Things! To obtain access to our website,
+        please create an account or log into an existing one from the header tab.
+    </p>
+</div>
+
+<!-- ============ AUTHENTICATED VIEW ============ -->
+<div id="userView" style="display:none">
+
+    <!-- welcome -->
+    <p class="system-text" id="welcome-back-text"></p>
+
+    <!-- create-post -->
+    <form class="create-post" id="createPostForm">
+        <div class="grid" id="create-post-form">
+            <div class="row">
+                <h2 class="system-text">Create new post.</h2>
+
+                <p class="system-text">Title:</p>
+                <div><input id="newPostTitle" class="text-box single-line" /></div>
+
+                <p class="system-text">Body:</p>
+                <div id="new-post-body-box">
+                    <textarea id="newPostBody"></textarea>
+                </div>
+
+                <input type="submit" value="Create Post" />
+                <span id="createPostErr" class="field-validation-error"></span>
+            </div>
+        </div>
+    </form>
+
+    <!-- feed -->
+    <div class="posts" id="postsContainer"></div>
+</div>
+
+<!-- ============ TEMPLATES ============ -->
+<template id="postTmpl">
+    <div class="post">
+        <div class="post-title"><h2 class="postTitle"></h2></div>
+        <div class="post-user"><h4 class="postUsername"></h4></div>
+        <br />
+        <div class="post-content"><p class="postContent"></p></div>
+
+        <div class="post-date">
+            <p><span class="postLikes"></span> Likes.</p>
+            <p>Written on: <span class="postDate"></span></p>
+        </div>
+        <br />
+
+        <div class="post-actions">
+            <form class="likeForm"><button type="submit" class="likeBtn">Like</button></form>
+            <form class="replyForm">
+                <textarea class="replyInput"></textarea>
+                <input type="submit" value="Reply" />
+            </form>
+        </div>
+
+        <div class="replies"></div>
+    </div>
+</template>
+
+<template id="replyTmpl">
+    <div class="reply">
+        <div class="reply-user"><h4 class="replyUsername"></h4></div>
+        <div class="reply-content"><p class="replyContent"></p></div>
+        <div class="reply-date">
+            <p>Written on: <span class="replyDate"></span></p>
+        </div>
+    </div>
+</template>
+
+<script>
+/* ---------- CONFIG ---------- */
+const apiBase  = 'https://localhost:64706/api';   // API port
+const jwt      = sessionStorage.getItem('jwt');
+const username = sessionStorage.getItem('user');
+const headers  = { 'Content-Type':'application/json', 'Authorization':`Bearer ${jwt}` };
+const qs = sel => document.querySelector(sel);
+
+/* ---------- AUTH GATE ---------- */
+if (!jwt) {
+    qs('#guestView').style.display = 'block';
+} else {
+    qs('#userView').style.display   = 'block';
+    qs('#welcome-back-text').textContent = 'Welcome back, @@' + username + '.';
+    loadFeed();
+}
+
+/* ---------- LOAD FEED ---------- */
+async function loadFeed() {
+    const res   = await fetch(apiBase + '/Feed', { headers });
+    const posts = await res.json();
+    const cont  = qs('#postsContainer');
+    cont.innerHTML = '';
+
+    posts.forEach(p => cont.appendChild(renderPost(p)));
+}
+
+/* ---------- RENDER POST ---------- */
+function renderPost(post) {
+    const frag = qs('#postTmpl').content.cloneNode(true);
+    const me      = Number(sessionStorage.getItem('userid'));   // set this once at login if you wish
+    const isAdmin = sessionStorage.getItem('admin') === 'true';
+    const iOwnPost = post.userId === me;
+
+    frag.querySelector('.postTitle').textContent    = post.title;
+    frag.querySelector('.postUsername').textContent = 'Posted by @@' + post.userUsername;
+    frag.querySelector('.postContent').textContent  = post.content;
+    frag.querySelector('.postLikes').textContent    = post.likes;
+    frag.querySelector('.postDate').textContent     = new Date(post.createdAt).toLocaleString();
+
+    const likeForm = frag.querySelector('.likeForm');
+    const likeBtn  = frag.querySelector('.likeBtn');
+
+    // decide initial label & HTTP method
+    if (post.isLikedByMe) {
+        likeBtn.textContent = 'Unlike';
+        likeForm.dataset.method = 'DELETE';
+    } else {
+        likeBtn.textContent = 'Like';
+        likeForm.dataset.method = 'POST';
+    }
+
+    /* handler */
+    likeForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        const method = likeForm.dataset.method;          // POST or DELETE
+        await fetch(`${apiBase}/Feed/${post.id}/like`,
+                    { method, headers });
+        loadFeed();                                      // refresh the feed
+    });
+
+    if (isAdmin || iOwnPost) {
+        const del = document.createElement('button');
+        del.textContent = 'Delete Post';
+        del.onclick = async () => {
+            await fetch(`${apiBase}/Feed/${post.id}`, { method:'DELETE', headers });
+            loadFeed();
+        };
+        frag.querySelector('.post-date').prepend(del);
+    }
+
+    /* render replies */
+const repliesDiv = frag.querySelector('.replies');
+
+post.replies.forEach(rep => {
+    // clone the template
+    const repFrag = qs('#replyTmpl').content.cloneNode(true);
+
+    // fill data
+    repFrag.querySelector('.replyUsername').textContent =
+        'Replied by @@' + rep.userUsername;
+    repFrag.querySelector('.replyContent').textContent  = rep.content;
+    repFrag.querySelector('.replyDate').textContent     =
+        new Date(rep.createdAt).toLocaleString();
+
+    // owner / admin delete
+    const iOwnReply = rep.userId === me;
+    if (isAdmin || iOwnReply) {
+        const del = document.createElement('button');
+        del.textContent = 'Delete Reply';
+        del.onclick = async () => {
+            await fetch(`${apiBase}/Replies/${rep.id}`,
+                        { method:'DELETE', headers });
+            loadFeed();
+        };
+        repFrag.querySelector('.replyDate').prepend(del);
+    }
+
+    repliesDiv.appendChild(repFrag);
+});
+    
+    /* reply */
+    frag.querySelector('.replyForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const txt = e.target.querySelector('.replyInput').value.trim();
+        if (!txt) return;
+
+        await fetch(apiBase + '/Feed/' + post.id + '/reply',
+                    { method:'POST', headers, body: JSON.stringify({ content: txt }) });
+        loadFeed();
+    });
+
+    return frag;
+}
+
+/* ---------- CREATE POST ---------- */
+qs('#createPostForm')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const title = qs('#newPostTitle').value.trim();
+    const body  = qs('#newPostBody').value.trim();
+    if (!title || !body) {
+        qs('#createPostErr').textContent = 'Both fields required';
+        return;
+    }
+
+    const res = await fetch(apiBase + '/Feed',
+        { method:'POST', headers, body: JSON.stringify({ title, content: body }) });
+
+    if (res.ok) {
+        qs('#newPostTitle').value = '';
+        qs('#newPostBody').value  = '';
+        loadFeed();
+    } else {
+        qs('#createPostErr').textContent = 'Error creating post';
+    }
+});
+</script>
