@@ -1,4 +1,6 @@
-﻿using Common.Repos;
+﻿using CodeSpace.Common.Dtos.Feed;
+
+using Common.Repos;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -30,4 +32,20 @@ public class RepliesController : ControllerBase
         _db.SaveChanges();
         return NoContent();
     }
+    [HttpPut("{id:int}")]
+    [Authorize]
+    public async Task<IActionResult> UpdateReply(int id, [FromBody] UpdateReplyRequest dto)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var reply = await _db.Replies.FindAsync(id);
+        if (reply is null) return NotFound();
+
+        var isAdmin = User.HasClaim("isAdmin", "true");
+        if (reply.UserId != userId && !isAdmin) return Forbid();
+
+        reply.Content = dto.Content;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
 }

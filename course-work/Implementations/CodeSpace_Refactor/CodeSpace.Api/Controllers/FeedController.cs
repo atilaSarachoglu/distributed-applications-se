@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CodeSpace.Models.FeedInteractions;
 using System.Security.Claims;
+using CodeSpace.Common.Dtos.Feed;
 
 namespace CodeSpace.Api.Controllers
 {
@@ -23,6 +24,7 @@ namespace CodeSpace.Api.Controllers
         [HttpGet]
         public async Task<IEnumerable<PostDto>> GetFeed()
         {
+            var isAdmin = User.HasClaim("isAdmin", "true");
             int me = User.Identity!.IsAuthenticated
                         ? int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value)
                         : 0;
@@ -57,7 +59,8 @@ namespace CodeSpace.Api.Controllers
                     r.UserId,
                     r.UserUsername,
                     r.Content,
-                    r.CreatedAt
+                    r.CreatedAt,
+                    r.UserId == me || isAdmin
                 ))
                 .ToListAsync();
 
@@ -72,7 +75,8 @@ namespace CodeSpace.Api.Controllers
                 p.CreatedAt,
                 p.Likes,
                 p.IsLikedByMe,
-                replyRows.Where(r => r.PostId == p.Id).ToList()
+                replyRows.Where(r => r.PostId == p.Id).ToList(),
+                p.UserId == me || isAdmin
             ));
 
             return posts;
@@ -144,6 +148,22 @@ namespace CodeSpace.Api.Controllers
 
             _db.Likes.Remove(like);
             _db.SaveChanges();
+            return NoContent();
+        }
+
+        [HttpPut("{id:int}")]
+        [Authorize]
+        public async Task<IActionResult> UpdatePost(int id, [FromBody] UpdatePostRequest dto)
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var post = await _db.Posts.FindAsync(id);
+            if (post is null) return NotFound();
+
+            var isAdmin = User.HasClaim("isAdmin", "true");
+            if (post.UserId != userId && !isAdmin) return Forbid();
+
+            post.Content = dto.Content;
+            await _db.SaveChangesAsync();
             return NoContent();
         }
 

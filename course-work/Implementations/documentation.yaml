@@ -1,26 +1,164 @@
 openapi: 3.0.3
 info:
   title: Just Girly Things – API
-  description: >
-    **Курсова задача – Домашна работа №1**  
-    Пълна документация на услугите за малка социална мрежа.<br/>
+  description: |-
+    **Курсова задача – Домашна работа №1**
+    Пълна документация на услугите за малка социална мрежа.
+
     Всички защитени крайни точки използват JWT (Bearer) авторизация.
-  version: "1.0.0"
+  version: "1.1.0"
   contact:
     name: Екип Just Girly Things
 servers:
   - url: https://localhost:64706
-    description: Локален dev сървър (.NET 6 Kestrel)
+    description: Локален dev сървър (.NET 6 Kestrel)
 
+# ---------------------------------------------------------------------------
+# TAGS
+# ---------------------------------------------------------------------------
 tags:
   - name: Authentication
     description: Регистрация и вписване
   - name: Feed
-    description: Публична емисия и постове
+    description: Емисия и постове
   - name: Replies
     description: Отговори под пост
+  - name: Users
+    description: Управление на потребители (само за администратори)
 
+# ---------------------------------------------------------------------------
+# COMPONENTS
+# ---------------------------------------------------------------------------
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        Използвайте JWT токена, върнат при `/api/Auth/login` или `/api/Auth/register`,
+        като стойност на `Authorization: Bearer <token>`.
+
+  parameters:
+    PostId:
+      name: postId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      description: Идентификатор на пост
+    ReplyId:
+      name: replyId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      description: Идентификатор на отговор
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      description: Идентификатор на потребител
+
+  schemas:
+    # ------------ AUTH -------------
+    RegisterRequest:
+      type: object
+      required: [username, password, email]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 32 }
+        password: { type: string, minLength: 4, maxLength: 64 }
+        email: { type: string, format: email }
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+
+    LoginResponse:
+      type: object
+      properties:
+        token: { type: string, description: JWT Bearer токен }
+        username: { type: string }
+        isAdmin: { type: boolean }
+        userId: { type: integer }
+
+    # ------------- FEED & REPLIES -------------
+    CreatePostRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        content: { type: string, minLength: 1, maxLength: 5000 }
+
+    UpdatePostRequest:
+      allOf:
+        - $ref: "#/components/schemas/CreatePostRequest"
+
+    CreateReplyRequest:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 2000 }
+
+    UpdateReplyRequest:
+      allOf:
+        - $ref: "#/components/schemas/CreateReplyRequest"
+
+    ReplyDto:
+      type: object
+      properties:
+        id: { type: integer }
+        postId: { type: integer }
+        userId: { type: integer }
+        userUsername: { type: string }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    PostDto:
+      type: object
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        userUsername: { type: string }
+        title: { type: string }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+        likes: { type: integer }
+        isLikedByMe: { type: boolean }
+        replies:
+          type: array
+          items: { $ref: "#/components/schemas/ReplyDto" }
+
+    # ------------- USERS -------------
+    UpdateUserRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 4, maxLength: 64 }
+        isAdmin: { type: boolean }
+
+    UserDto:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string, format: email }
+        isAdmin: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    # ------------- ERROR -------------
+    Error:
+      type: object
+      properties:
+        message: { type: string }
+
+# ---------------------------------------------------------------------------
+# PATHS
+# ---------------------------------------------------------------------------
 paths:
+  # ---------- AUTHENTICATION ----------
   /api/Auth/register:
     post:
       tags: [Authentication]
@@ -31,7 +169,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/RegisterRequest" }
       responses:
-        "200":
+        "201":
           description: Успешна регистрация – връща JWT и данни на потребителя
           content:
             application/json:
@@ -63,6 +201,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  # ---------- FEED ----------
   /api/Feed:
     get:
       tags: [Feed]
@@ -88,13 +227,51 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/CreatePostRequest" }
       responses:
-        "201":
-          description: Създадено
+        "201": { description: Създадено }
         "400":
           description: Липсващо или невалидно съдържание
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+
+  /api/Feed/{postId}:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+    get:
+      tags: [Feed]
+      summary: Връща детайлите за пост
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PostDto" }
+        "404": { description: Постът не е намерен }
+    put:
+      tags: [Feed]
+      summary: Актуализиране на пост (собственик или админ)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePostRequest" }
+      responses:
+        "204": { description: Актуализирано }
+        "403": { description: Без право за промяна }
+        "404": { description: Постът не е намерен }
+    delete:
+      tags: [Feed]
+      summary: Изтриване на пост (собственик или админ)
+      security:
+        - BearerAuth: []
+      responses:
+        "204": { description: Изтрито }
+        "403": { description: Без право за триене }
+        "404": { description: Постът не е намерен }
 
   /api/Feed/{postId}/like:
     parameters:
@@ -116,19 +293,6 @@ paths:
         "204": { description: Отхаресано }
         "404": { description: Няма такъв лайк }
 
-  /api/Feed/{postId}:
-    parameters:
-      - $ref: "#/components/parameters/PostId"
-    delete:
-      tags: [Feed]
-      summary: Изтриване на пост (собственик или админ)
-      security:
-        - BearerAuth: []
-      responses:
-        "204": { description: Изтрито }
-        "403": { description: Без право за триене }
-        "404": { description: Постът не е намерен }
-
   /api/Feed/{postId}/reply:
     parameters:
       - $ref: "#/components/parameters/PostId"
@@ -146,9 +310,24 @@ paths:
         "201": { description: Отговорът е създаден }
         "400": { description: Липсващо съдържание }
 
+  # ---------- REPLIES ----------
   /api/Replies/{replyId}:
     parameters:
       - $ref: "#/components/parameters/ReplyId"
+    put:
+      tags: [Replies]
+      summary: Актуализиране на отговор (собственик или админ)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateReplyRequest" }
+      responses:
+        "204": { description: Актуализирано }
+        "403": { description: Без право за промяна }
+        "404": { description: Не е намерено }
     delete:
       tags: [Replies]
       summary: Изтриване на отговор (собственик или админ)
@@ -159,110 +338,46 @@ paths:
         "403": { description: Без право за триене }
         "404": { description: Не е намерено }
 
-components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: >
-        Използвайте JWT токена, върнат при `/api/Auth/login` или `/api/Auth/register`,
-        като стойност на `Authorization: Bearer <token>`.
+  # ---------- USERS (ADMIN) ----------
+  /api/Users:
+    get:
+      tags: [Users]
+      summary: Връща списък с всички потребители (админ)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/UserDto" }
+        "403": { description: Не сте администратор }
 
-  parameters:
-    PostId:
-      name: postId
-      in: path
-      required: true
-      schema: { type: integer, minimum: 1 }
-      description: Идентификатор на пост
-    ReplyId:
-      name: replyId
-      in: path
-      required: true
-      schema: { type: integer, minimum: 1 }
-      description: Идентификатор на отговор
-
-  schemas:
-    RegisterRequest:
-      type: object
-      required: [username, password, email]
-      properties:
-        username:
-          type: string
-          minLength: 3
-          maxLength: 32
-        password:
-          type: string
-          minLength: 4
-          maxLength: 64
-        email:
-          type: string
-          format: email
-
-    LoginRequest:
-      type: object
-      required: [username, password]
-      properties:
-        username: { type: string }
-        password: { type: string }
-
-    LoginResponse:
-      type: object
-      properties:
-        token: { type: string, description: JWT Bearer токен }
-        username: { type: string }
-        isAdmin: { type: boolean }
-        userId: { type: integer }
-
-    CreatePostRequest:
-      type: object
-      required: [title, content]
-      properties:
-        title:
-          type: string
-          minLength: 1
-          maxLength: 120
+  /api/Users/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    put:
+      tags: [Users]
+      summary: Актуализиране на потребител (админ)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
         content:
-          type: string
-          minLength: 1
-          maxLength: 5000
-
-    CreateReplyRequest:
-      type: object
-      required: [content]
-      properties:
-        content:
-          type: string
-          minLength: 1
-          maxLength: 2000
-
-    ReplyDto:
-      type: object
-      properties:
-        id: { type: integer }
-        postId: { type: integer }
-        userId: { type: integer }
-        userUsername: { type: string }
-        content: { type: string }
-        createdAt: { type: string, format: date-time }
-
-    PostDto:
-      type: object
-      properties:
-        id: { type: integer }
-        userId: { type: integer }
-        userUsername: { type: string }
-        title: { type: string }
-        content: { type: string }
-        createdAt: { type: string, format: date-time }
-        likes: { type: integer }
-        isLikedByMe: { type: boolean }
-        replies:
-          type: array
-          items: { $ref: "#/components/schemas/ReplyDto" }
-
-    Error:
-      type: object
-      properties:
-        message: { type: string }
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserRequest" }
+      responses:
+        "204": { description: Актуализирано }
+        "403": { description: Не сте администратор }
+        "404": { description: Потребителят не е намерен }
+    delete:
+      tags: [Users]
+      summary: Изтриване на потребител (админ)
+      security:
+        - BearerAuth: []
+      responses:
+        "204": { description: Изтрито }
+        "403": { description: Не сте администратор }
+        "404": { description: Потребителят не е намерен }

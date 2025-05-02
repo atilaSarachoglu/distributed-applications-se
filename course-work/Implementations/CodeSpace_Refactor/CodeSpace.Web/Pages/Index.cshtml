@@ -145,7 +145,7 @@ function renderPost(post) {
             await fetch(`${apiBase}/Feed/${post.id}`, { method:'DELETE', headers });
             loadFeed();
         };
-        frag.querySelector('.post-date').prepend(del);
+        frag.querySelector('.post-date').append(del);
     }
 
     /* render replies */
@@ -172,7 +172,7 @@ post.replies.forEach(rep => {
                         { method:'DELETE', headers });
             loadFeed();
         };
-        repFrag.querySelector('.replyDate').prepend(del);
+        repFrag.querySelector('.reply').append(del);
     }
 
     repliesDiv.appendChild(repFrag);

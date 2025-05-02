@@ -18,6 +18,7 @@ var key = builder.Configuration["JwtKey"] ?? "dev-sample-key-change-me";
 var issuer = builder.Configuration["JwtIssuer"] ?? "CodeSpaceApi";
 var audience = builder.Configuration["JwtAudience"] ?? "CodeSpaceWeb";
 
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -35,7 +36,10 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(opts =>
+    opts.AddPolicy("AdminOnly",
+        p => p.RequireClaim("isAdmin", "true")));
+
 
 builder.Services.AddControllers();
 

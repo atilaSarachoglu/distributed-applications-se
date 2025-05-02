@@ -1,6 +1,26 @@
 ﻿@page
-@*
-    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
-*@
 @{
+    Layout = "_Layout";
+    ViewData["Title"] = "Users";
 }
+<h2>Registered users</h2>
+<table class="table" id="usersTable">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>User name</th>
+            <th>Email</th>
+            <th>Admin</th>
+            <th style="width:130px;"></th>  @* actions *@
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+
+
+@section Scripts {
+     <script src="~/js/site.js"></script>
+     <script src="~/js/users.js"></script>
+}
+

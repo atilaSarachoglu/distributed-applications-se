@@ -6,8 +6,15 @@
 <head>
     <meta charset="utf-8" />
     <title>Just Girly Things</title>
-    <link href="~/css/site.css" rel="stylesheet" type="text/css" />
+
+    <!-- 1) Bootstrap first -->
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+
+    <!-- 2) YOUR styles second (now override Bootstrap) -->
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
+
 
 <body>
     <div class="header">
@@ -20,37 +27,60 @@
             <a id="buttonHome" href="/">Home</a>
             <a id="buttonContact" href="/Contact">Contact</a>
             <a id="buttonAbout" href="/About">About</a>
-
             <!-- always render both; JS shows/hides -->
-            <a id="buttonLogin" href="/Users/Login">Log&nbsp;in/Register</a>
-            <a id="buttonLogout" href="#" style="display:none">Log&nbsp;out</a>
+            <a id="buttonLogin" href="/Users/Login" hidden>Log&nbsp;in / Register</a>
+            <a id="buttonLogout" href="#" hidden>Log&nbsp;out</a>
+            <a id="usersTab" href="/Users" hidden>Users</a>
         </div>
     </div>
 
     @RenderBody()
 
     <script>
-        /* toggle Login / Logout based on JWT in sessionStorage */
         document.addEventListener('DOMContentLoaded', () => {
-            const hasJwt = !!sessionStorage.getItem('jwt');
 
+            /* ------------ DOM --------------- */
             const loginBtn  = document.getElementById('buttonLogin');
             const logoutBtn = document.getElementById('buttonLogout');
+            const usersTab  = document.getElementById('usersTab');
 
-            if (hasJwt) {
-                loginBtn.style.display  = 'none';
-                logoutBtn.style.display = 'inline';
+            /* ------------ helpers ----------- */
+            const show = el => { if (el) { el.hidden = false; el.style.display = '';   } };
+            const hide = el => { if (el) { el.hidden = true;  el.style.display = 'none';} };
 
-                logoutBtn.addEventListener('click', e => {
-                    e.preventDefault();
-                    sessionStorage.removeItem('jwt');
-                    sessionStorage.removeItem('user');
-                    window.location = '/';          // back to home (guest view)
-                });
-            } else {
-                logoutBtn.style.display = 'none';
+            /** Decode JWT payload safely (adds missing padding) */
+            function parseJwt(token) {
+                const base64Url = token.split('.')[1];               // middle part
+                let   base64    = base64Url.replace(/-/g,'+').replace(/_/g,'/');
+                // ← добавяме липсващите =, ако дължината не е кратна на 4
+                while (base64.length % 4) base64 += '=';
+                return JSON.parse(atob(base64));
             }
+
+            /* ------------ main ------------- */
+            const jwt = sessionStorage.getItem('jwt');
+            if (!jwt) { hide(logoutBtn); hide(usersTab); show(loginBtn); return; }
+
+            hide(loginBtn); show(logoutBtn);
+
+            /* показваме “Users”, ако claim-ът е "true" (стринг или bool) */
+            try {
+                const isAdmin = (() => {
+                    const payload = parseJwt(jwt);
+                    const claim   = payload.isAdmin ?? payload.IsAdmin;
+                    return claim === true || claim === 'true' || claim === 'True';
+                })();
+                if (isAdmin) show(usersTab);
+            } catch { /* счупен токен → третираме като guest */ }
+
+            logoutBtn.addEventListener('click', e => {
+                e.preventDefault();
+                sessionStorage.removeItem('jwt');
+                sessionStorage.removeItem('user');
+                window.location = '/';
+            });
         });
     </script>
+    @RenderSection("Scripts", required: false)
 </body>
 </html>

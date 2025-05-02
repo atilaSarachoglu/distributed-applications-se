@@ -14,10 +14,10 @@ namespace Common.Repos
 {
     public class AppDbContext : DbContext
     {
-        public DbSet<User> Users {  get; set; }
+        public DbSet<User> Users { get; set; }
         public DbSet<Post> Posts { get; set; }
         public DbSet<Reply> Replies { get; set; }
-        public DbSet<Like> Likes { get; set; } 
+        public DbSet<Like> Likes { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             #region UsersEntityHandler
@@ -39,13 +39,13 @@ namespace Common.Repos
 
             #region LikesEntityHandler
             modelBuilder.Entity<Like>().HasKey(x => x.Id);
-            modelBuilder.Entity<Like>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Like>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             modelBuilder.Entity<Like>().HasOne(x => x.Post).WithMany().HasForeignKey(x => x.PostId).OnDelete(DeleteBehavior.Cascade);
             #endregion
 
             #region RepliesEntityHandler
             modelBuilder.Entity<Reply>().HasKey(x => x.Id);
-            modelBuilder.Entity<Reply>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Reply>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             modelBuilder.Entity<Reply>().HasOne(x => x.Post).WithMany().HasForeignKey(x => x.PostId).OnDelete(DeleteBehavior.Cascade);
             #endregion
         }
