@@ -36,6 +36,9 @@ public class RepliesController : ControllerBase
     [Authorize]
     public async Task<IActionResult> UpdateReply(int id, [FromBody] UpdateReplyRequest dto)
     {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var reply = await _db.Replies.FindAsync(id);
         if (reply is null) return NotFound();

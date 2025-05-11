@@ -25,6 +25,9 @@ namespace CodeSpace.Api.Controllers
         [HttpPost("register")]
         public IActionResult Register(RegisterRequest req)
         {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
             if (_db.Users.Any(u => u.Username == req.Username))
                 return Conflict("Username taken");
 
@@ -48,6 +51,9 @@ namespace CodeSpace.Api.Controllers
         [HttpPost("login")]
         public IActionResult Login(LoginRequest req)
         {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
             var user = _db.Users.SingleOrDefault(u => u.Username == req.Username && u.Password == req.Password);
             if (user == null) return Unauthorized();
 

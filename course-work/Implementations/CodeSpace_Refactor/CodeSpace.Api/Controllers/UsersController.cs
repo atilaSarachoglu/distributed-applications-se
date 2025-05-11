@@ -25,6 +25,9 @@ public class UsersController : ControllerBase
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateUserRequest dto)
     {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
         var user = await _db.Users.FindAsync(id);
         if (user is null) return NotFound();
 

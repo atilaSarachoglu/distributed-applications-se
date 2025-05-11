@@ -87,6 +87,9 @@ namespace CodeSpace.Api.Controllers
         [HttpPost]
         public IActionResult CreatePost(CreatePostRequest req)
         {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
             var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (!int.TryParse(userIdStr, out var userId)) return Unauthorized();
             var user = _db.Users.Find(userId)!;
@@ -122,6 +125,9 @@ namespace CodeSpace.Api.Controllers
         [HttpPost("{id}/reply")]
         public IActionResult Reply(int id, CreateReplyRequest req)
         {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var user = _db.Users.Find(userId)!;                 // get the name once
 
@@ -155,6 +161,9 @@ namespace CodeSpace.Api.Controllers
         [Authorize]
         public async Task<IActionResult> UpdatePost(int id, [FromBody] UpdatePostRequest dto)
         {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var post = await _db.Posts.FindAsync(id);
             if (post is null) return NotFound();
