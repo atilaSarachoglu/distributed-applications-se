@@ -57,11 +57,19 @@
 
         <div class="post-actions">
             <form class="likeForm"><button type="submit" class="likeBtn">Like</button></form>
+            <button type="button" class="editPostBtn" style="display:none">Edit Post</button>
             <form class="replyForm">
                 <textarea class="replyInput"></textarea>
                 <input type="submit" value="Reply" />
             </form>
         </div>
+
+        <!-- inline post editor -->
+        <form class="editPostForm" style="display:none">
+            <textarea class="editPostInput"></textarea>
+            <button type="submit">Save</button>
+            <button type="button" class="cancelEditPost">Cancel</button>
+        </form>
 
         <div class="replies"></div>
     </div>
@@ -74,29 +82,37 @@
         <div class="reply-date">
             <p>Written on: <span class="replyDate"></span></p>
         </div>
+        <button type="button" class="editReplyBtn" style="display:none">Edit Reply</button>
+
+        <!-- inline reply editor -->
+        <form class="editReplyForm" style="display:none">
+            <textarea class="editReplyInput"></textarea>
+            <button type="submit">Save</button>
+            <button type="button" class="cancelEditReply">Cancel</button>
+        </form>
     </div>
 </template>
 
 <script>
-/* ---------- CONFIG ---------- */
-const apiBase  = 'https://localhost:64706/api';   // API port
+/********** CONFIG **********/
+const apiBase  = 'https://localhost:64706/api';   // API base URL
 const jwt      = sessionStorage.getItem('jwt');
 const username = sessionStorage.getItem('user');
 const headers  = { 'Content-Type':'application/json', 'Authorization':`Bearer ${jwt}` };
 const qs = sel => document.querySelector(sel);
 
-/* ---------- AUTH GATE ---------- */
+/********** AUTH GATE **********/
 if (!jwt) {
     qs('#guestView').style.display = 'block';
 } else {
     qs('#userView').style.display   = 'block';
-    qs('#welcome-back-text').textContent = 'Welcome back, @@' + username + '.';
+    qs('#welcome-back-text').textContent = `Welcome back, @@${username}.`;
     loadFeed();
 }
 
-/* ---------- LOAD FEED ---------- */
+/********** LOAD FEED **********/
 async function loadFeed() {
-    const res   = await fetch(apiBase + '/Feed', { headers });
+    const res   = await fetch(`${apiBase}/Feed`, { headers });
     const posts = await res.json();
     const cont  = qs('#postsContainer');
     cont.innerHTML = '';
@@ -104,23 +120,23 @@ async function loadFeed() {
     posts.forEach(p => cont.appendChild(renderPost(p)));
 }
 
-/* ---------- RENDER POST ---------- */
+/********** RENDER POST **********/
 function renderPost(post) {
     const frag = qs('#postTmpl').content.cloneNode(true);
-    const me      = Number(sessionStorage.getItem('userid'));   // set this once at login if you wish
+    const me      = Number(sessionStorage.getItem('userid'));
     const isAdmin = sessionStorage.getItem('admin') === 'true';
     const iOwnPost = post.userId === me;
 
     frag.querySelector('.postTitle').textContent    = post.title;
-    frag.querySelector('.postUsername').textContent = 'Posted by @@' + post.userUsername;
+    frag.querySelector('.postUsername').textContent = `Posted by @@${post.userUsername}`;
     frag.querySelector('.postContent').textContent  = post.content;
     frag.querySelector('.postLikes').textContent    = post.likes;
     frag.querySelector('.postDate').textContent     = new Date(post.createdAt).toLocaleString();
 
+    /* ---------- LIKE ---------- */
     const likeForm = frag.querySelector('.likeForm');
     const likeBtn  = frag.querySelector('.likeBtn');
 
-    // decide initial label & HTTP method
     if (post.isLikedByMe) {
         likeBtn.textContent = 'Unlike';
         likeForm.dataset.method = 'DELETE';
@@ -129,15 +145,14 @@ function renderPost(post) {
         likeForm.dataset.method = 'POST';
     }
 
-    /* handler */
     likeForm.addEventListener('submit', async e => {
         e.preventDefault();
-        const method = likeForm.dataset.method;          // POST or DELETE
-        await fetch(`${apiBase}/Feed/${post.id}/like`,
-                    { method, headers });
-        loadFeed();                                      // refresh the feed
+        const method = likeForm.dataset.method;
+        await fetch(`${apiBase}/Feed/${post.id}/like`, { method, headers });
+        loadFeed();
     });
 
+    /* ---------- DELETE BUTTON ---------- */
     if (isAdmin || iOwnPost) {
         const del = document.createElement('button');
         del.textContent = 'Delete Post';
@@ -148,51 +163,124 @@ function renderPost(post) {
         frag.querySelector('.post-date').append(del);
     }
 
-    /* render replies */
-const repliesDiv = frag.querySelector('.replies');
+    /* ---------- EDIT POST ---------- */
+    const editPostBtn   = frag.querySelector('.editPostBtn');
+    const editPostForm  = frag.querySelector('.editPostForm');
+    const editPostInput = frag.querySelector('.editPostInput');
+    const cancelEditPost = frag.querySelector('.cancelEditPost');
 
-post.replies.forEach(rep => {
-    // clone the template
-    const repFrag = qs('#replyTmpl').content.cloneNode(true);
-
-    // fill data
-    repFrag.querySelector('.replyUsername').textContent =
-        'Replied by @@' + rep.userUsername;
-    repFrag.querySelector('.replyContent').textContent  = rep.content;
-    repFrag.querySelector('.replyDate').textContent     =
-        new Date(rep.createdAt).toLocaleString();
-
-    // owner / admin delete
-    const iOwnReply = rep.userId === me;
-    if (isAdmin || iOwnReply) {
-        const del = document.createElement('button');
-        del.textContent = 'Delete Reply';
-        del.onclick = async () => {
-            await fetch(`${apiBase}/Replies/${rep.id}`,
-                        { method:'DELETE', headers });
-            loadFeed();
-        };
-        repFrag.querySelector('.reply').append(del);
+    if (isAdmin || iOwnPost) {
+        editPostBtn.style.display = 'inline-block';
     }
 
-    repliesDiv.appendChild(repFrag);
-});
-    
-    /* reply */
+    editPostBtn?.addEventListener('click', e => {
+        e.preventDefault();
+        editPostInput.value = post.content;
+        editPostForm.style.display = 'block';
+        editPostBtn.style.display  = 'none';
+    });
+
+    cancelEditPost?.addEventListener('click', () => {
+        editPostForm.style.display = 'none';
+        editPostBtn.style.display  = 'inline-block';
+    });
+
+    editPostForm?.addEventListener('submit', async e => {
+        e.preventDefault();
+        const newText = editPostInput.value.trim();
+        if (!newText || newText === post.content) {
+            cancelEditPost.click();
+            return;
+        }
+        await fetch(`${apiBase}/Feed/${post.id}`, {
+            method : 'PUT',
+            headers,
+            body   : JSON.stringify({ content: newText })
+        });
+        loadFeed();
+    });
+
+    /* ---------- REPLIES ---------- */
+    const repliesDiv = frag.querySelector('.replies');
+
+    post.replies.forEach(rep => {
+        const repFrag = qs('#replyTmpl').content.cloneNode(true);
+
+        repFrag.querySelector('.replyUsername').textContent = `Replied by @@${rep.userUsername}`;
+        repFrag.querySelector('.replyContent').textContent  = rep.content;
+        repFrag.querySelector('.replyDate').textContent     = new Date(rep.createdAt).toLocaleString();
+
+        const iOwnReply = rep.userId === me;
+
+        /* DELETE REPLY */
+        if (isAdmin || iOwnReply) {
+            const del = document.createElement('button');
+            del.textContent = 'Delete Reply';
+            del.onclick = async () => {
+                await fetch(`${apiBase}/Replies/${rep.id}`, { method:'DELETE', headers });
+                loadFeed();
+            };
+            repFrag.querySelector('.reply').append(del);
+        }
+
+        /* EDIT REPLY */
+        const editReplyBtn   = repFrag.querySelector('.editReplyBtn');
+        const editReplyForm  = repFrag.querySelector('.editReplyForm');
+        const editReplyInput = repFrag.querySelector('.editReplyInput');
+        const cancelEditReply = repFrag.querySelector('.cancelEditReply');
+
+        if (isAdmin || iOwnReply) {
+            editReplyBtn.style.display = 'inline-block';
+        }
+
+        editReplyBtn?.addEventListener('click', e => {
+            e.preventDefault();
+            editReplyInput.value = rep.content;
+            editReplyForm.style.display  = 'block';
+            editReplyBtn.style.display   = 'none';
+        });
+
+        cancelEditReply?.addEventListener('click', () => {
+            editReplyForm.style.display  = 'none';
+            editReplyBtn.style.display   = 'inline-block';
+        });
+
+        editReplyForm?.addEventListener('submit', async e => {
+            e.preventDefault();
+            const newText = editReplyInput.value.trim();
+            if (!newText || newText === rep.content) {
+                cancelEditReply.click();
+                return;
+            }
+            await fetch(`${apiBase}/Replies/${rep.id}`, {
+                method : 'PUT',
+                headers,
+                body   : JSON.stringify({ content: newText })
+            });
+            loadFeed();
+        });
+
+        repliesDiv.appendChild(repFrag);
+    });
+
+    /* ---------- ADD REPLY ---------- */
     frag.querySelector('.replyForm').addEventListener('submit', async e => {
         e.preventDefault();
         const txt = e.target.querySelector('.replyInput').value.trim();
         if (!txt) return;
 
-        await fetch(apiBase + '/Feed/' + post.id + '/reply',
-                    { method:'POST', headers, body: JSON.stringify({ content: txt }) });
+        await fetch(`${apiBase}/Feed/${post.id}/reply`, {
+            method:'POST',
+            headers,
+            body: JSON.stringify({ content: txt })
+        });
         loadFeed();
     });
 
     return frag;
 }
 
-/* ---------- CREATE POST ---------- */
+/********** CREATE POST **********/
 qs('#createPostForm')?.addEventListener('submit', async e => {
     e.preventDefault();
     const title = qs('#newPostTitle').value.trim();
@@ -202,8 +290,11 @@ qs('#createPostForm')?.addEventListener('submit', async e => {
         return;
     }
 
-    const res = await fetch(apiBase + '/Feed',
-        { method:'POST', headers, body: JSON.stringify({ title, content: body }) });
+    const res = await fetch(`${apiBase}/Feed`, {
+        method:'POST',
+        headers,
+        body: JSON.stringify({ title, content: body })
+    });
 
     if (res.ok) {
         qs('#newPostTitle').value = '';

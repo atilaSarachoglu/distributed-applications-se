@@ -5,6 +5,7 @@ namespace CodeSpace.Models.FeedInteractions
     public class CreateReplyVM
     {
         [Required(ErrorMessage = "Your reply cannot be empty.")]
+        [StringLength(1_000)]
         public string Content { get; set; }
     }
 }

@@ -21,32 +21,94 @@ namespace Common.Repos
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             #region UsersEntityHandler
-            modelBuilder.Entity<User>().HasKey(x => x.Id);
-            modelBuilder.Entity<User>().HasData(new User()
+            modelBuilder.Entity<User>(entity =>
             {
-                Id = 1,
-                Username = "admin",
-                Password = "admin",
-                IsAdmin = true,
-                Email = null,
+                entity.HasKey(u => u.Id);
+
+                entity.Property(u => u.Username)
+                      .IsRequired()
+                      .HasMaxLength(50);
+
+                entity.Property(u => u.Password)
+                      .IsRequired()
+                      .HasMaxLength(64);
+
+                entity.Property(u => u.Email)
+                      .HasMaxLength(255);
+
+                entity.HasData(new User
+                {
+                    Id = 1,
+                    Username = "admin",
+                    Password = "admin",
+                    IsAdmin = true,
+                    Email = null
+                });
             });
             #endregion
 
             #region PostsEntityHandler
-            modelBuilder.Entity<Post>().HasKey(x => x.Id);
-            modelBuilder.Entity<Post>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<Post>(entity =>
+            {
+                entity.HasKey(p => p.Id);
+
+                entity.Property(p => p.Title)
+                      .IsRequired()
+                      .HasMaxLength(15);
+
+                entity.Property(p => p.Content)
+                      .IsRequired()
+                      .HasMaxLength(1_000);
+
+                entity.Property(p => p.CreatedAt)
+                      .IsRequired();
+
+                entity.HasOne(p => p.User)
+                      .WithMany()
+                      .HasForeignKey(p => p.UserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
             #endregion
 
             #region LikesEntityHandler
-            modelBuilder.Entity<Like>().HasKey(x => x.Id);
-            modelBuilder.Entity<Like>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
-            modelBuilder.Entity<Like>().HasOne(x => x.Post).WithMany().HasForeignKey(x => x.PostId).OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<Like>(entity =>
+            {
+                entity.HasKey(l => l.Id);
+
+                entity.HasOne(l => l.User)
+                      .WithMany()
+                      .HasForeignKey(l => l.UserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(l => l.Post)
+                      .WithMany()
+                      .HasForeignKey(l => l.PostId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
             #endregion
 
             #region RepliesEntityHandler
-            modelBuilder.Entity<Reply>().HasKey(x => x.Id);
-            modelBuilder.Entity<Reply>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
-            modelBuilder.Entity<Reply>().HasOne(x => x.Post).WithMany().HasForeignKey(x => x.PostId).OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<Reply>(entity =>
+            {
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.Content)
+                      .IsRequired()
+                      .HasMaxLength(1_000);
+
+                entity.Property(r => r.CreatedAt)
+                      .IsRequired();
+
+                entity.HasOne(r => r.User)
+                      .WithMany()
+                      .HasForeignKey(r => r.UserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(r => r.Post)
+                      .WithMany()
+                      .HasForeignKey(r => r.PostId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
             #endregion
         }
         protected override void OnConfiguring(DbContextOptionsBuilder builder)

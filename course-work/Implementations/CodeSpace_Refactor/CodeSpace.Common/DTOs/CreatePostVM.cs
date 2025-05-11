@@ -6,9 +6,9 @@ namespace CodeSpace.Models.FeedInteractions
     {
         [Required(ErrorMessage = "You cannot have an empty title.")]
         [StringLength(15)]
-        public string Title { get; set; }   
+        public string Title { get; set; }
         [Required(ErrorMessage = "You cannot have an empty body.")]
-        [StringLength(300)]
+        [StringLength(1_000)]
         public string Content { get; set; }
         public int UserId { get; set; }
         public string UserUsername { get; set; }
