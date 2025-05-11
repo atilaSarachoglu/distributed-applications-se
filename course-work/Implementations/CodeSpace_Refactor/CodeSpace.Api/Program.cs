@@ -77,11 +77,15 @@ builder.Services.AddCors(opts =>
     opts.AddDefaultPolicy(policy =>
         policy.WithOrigins("https://localhost:64705")  // Web port
               .AllowAnyHeader()
-              .AllowAnyMethod());
+              .AllowAnyMethod()
+              .AllowCredentials());
+
 });
 
 var app = builder.Build();
 
+Console.WriteLine($"JwtKey seen by {builder.Environment.ApplicationName} = "
+                  + builder.Configuration["JwtKey"]);
 
 if (app.Environment.IsDevelopment())
 {

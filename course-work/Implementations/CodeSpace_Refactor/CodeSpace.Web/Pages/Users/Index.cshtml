@@ -1,4 +1,6 @@
 ﻿@page
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "AdminOnly")]
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Users";

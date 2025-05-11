@@ -10,9 +10,6 @@ public class UpdateUserRequest
     [EmailAddress, MaxLength(100)]
     public string? Email { get; init; }
 
-    /// <summary>
-    /// Plain-text password for now. If null or empty → keep old password.
-    /// </summary>
     [MaxLength(100)]
     public string? Password { get; init; }
 

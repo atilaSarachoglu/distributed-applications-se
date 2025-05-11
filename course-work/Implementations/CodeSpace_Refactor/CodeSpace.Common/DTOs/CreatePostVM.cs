@@ -5,11 +5,13 @@ namespace CodeSpace.Models.FeedInteractions
     public class CreatePostVM
     {
         [Required(ErrorMessage = "You cannot have an empty title.")]
-        [StringLength(15)]
+        [StringLength(50)]
         public string Title { get; set; }
+
         [Required(ErrorMessage = "You cannot have an empty body.")]
-        [StringLength(1_000)]
+        [StringLength(1000)]
         public string Content { get; set; }
+
         public int UserId { get; set; }
         public string UserUsername { get; set; }
     }

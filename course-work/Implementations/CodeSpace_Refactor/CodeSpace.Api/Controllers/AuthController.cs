@@ -1,4 +1,4 @@
-using CodeSpace.Common.ApiDtos;
+﻿using CodeSpace.Common.ApiDtos;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -43,6 +43,7 @@ namespace CodeSpace.Api.Controllers
             _db.SaveChanges();
 
             var token = GenerateJwtToken(user);
+            IssueJwtCookie(token);
 
             return Ok(new LoginResponse(token, user.Username, user.IsAdmin, user.Id));
         }
@@ -58,6 +59,8 @@ namespace CodeSpace.Api.Controllers
             if (user == null) return Unauthorized();
 
             var token = GenerateJwtToken(user);
+            IssueJwtCookie(token);
+
             return Ok(new LoginResponse(token, user.Username, user.IsAdmin, user.Id));
         }
 
@@ -85,6 +88,16 @@ namespace CodeSpace.Api.Controllers
                 signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+        private void IssueJwtCookie(string token)
+        {
+            Response.Cookies.Append("jwt", token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,          // при https; за http dev → false
+                SameSite = SameSiteMode.None,  // 🔑  разрешава cross‑site
+                Expires = DateTimeOffset.UtcNow.AddHours(8)
+            });
         }
     }
 }
