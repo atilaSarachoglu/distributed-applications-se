@@ -1,6 +1,6 @@
-﻿/* helper – post/put/get/delete were already defined in site.js */
-
-/* turn a row into inline-edit mode */
+﻿
+let filterUsername = '';
+let filterEmail = '';
 function activateEditor(tr, user) {
     tr.innerHTML = '';                // wipe existing cells
 
@@ -68,7 +68,13 @@ function activateEditor(tr, user) {
 
 /* ---------- load + render ---------- */
 async function loadUsers() {
-    const data = await apiGet('Users');
+
+    const qs = new URLSearchParams();
+    if (filterUsername) qs.append('username', filterUsername);
+    if (filterEmail) qs.append('email', filterEmail);
+
+    const data = await apiGet('Users' + (qs.toString() ? `?${qs}` : ''));
+
     const tbody = document.querySelector('#usersTable tbody');
     tbody.innerHTML = '';
 
@@ -103,4 +109,22 @@ async function loadUsers() {
     });
 }
 
+/* --- search form handlers --- */
+document.getElementById('searchForm')?.addEventListener('submit', e => {
+    e.preventDefault();
+    filterUsername = document.getElementById('searchUsername').value.trim();
+    filterEmail = document.getElementById('searchEmail').value.trim();
+    loadUsers();
+});
+
+document.getElementById('resetSearch')?.addEventListener('click', () => {
+    document.getElementById('searchUsername').value = '';
+    document.getElementById('searchEmail').value = '';
+    filterUsername = '';
+    filterEmail = '';
+    loadUsers();
+});
+
 document.addEventListener('DOMContentLoaded', loadUsers);
+
+

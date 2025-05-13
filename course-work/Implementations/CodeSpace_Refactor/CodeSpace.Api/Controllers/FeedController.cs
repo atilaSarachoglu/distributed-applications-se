@@ -22,64 +22,61 @@ namespace CodeSpace.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IEnumerable<PostDto>> GetFeed()
+        public async Task<IEnumerable<PostDto>> GetFeed(
+     [FromQuery] int page = 1,
+     [FromQuery] int pageSize = 20,
+     [FromQuery] string orderBy = "createdAt")            // createdAt|likes
         {
-            var isAdmin = User.HasClaim("isAdmin", "true");
-            int me = User.Identity!.IsAuthenticated
-                        ? int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value)
-                        : 0;
+            page = page < 1 ? 1 : page;
+            pageSize = pageSize < 1 ? 20 : pageSize;
 
-            /* ---------- first query: posts ---------- */
-            var postRows = await _db.Posts
-                .OrderByDescending(p => p.CreatedAt)
-                .Take(20)
-                .Select(p => new
-                {
-                    p.Id,
-                    p.UserId,
-                    p.UserUsername,
-                    p.Title,
-                    p.Content,
-                    p.CreatedAt,
-                    Likes = _db.Likes.Count(l => l.PostId == p.Id),
-                    IsLikedByMe = _db.Likes.Any(l => l.PostId == p.Id && l.UserId == me)
-                })
-                .ToListAsync();
+            var isAdmin = User.HasClaim("isAdmin", "true");
+            var me = User.Identity!.IsAuthenticated
+                            ? int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value)
+                            : 0;
+
+            /* ---------- base query ---------- */
+            var q = _db.Posts.AsQueryable();
+
+            q = orderBy switch
+            {
+                "likes" => q.OrderByDescending(p => _db.Likes.Count(l => l.PostId == p.Id)),
+                _ => q.OrderByDescending(p => p.CreatedAt)
+            };
+
+            var total = await q.CountAsync();
+            Response.Headers.Add("X-Total-Count", total.ToString());
+            Response.Headers.Add("Access-Control-Expose-Headers", "X-Total-Count");
+
+            var postRows = await q.Skip((page - 1) * pageSize)
+                                  .Take(pageSize)
+                                  .Select(p => new
+                                  {
+                                      p.Id,
+                                      p.UserId,
+                                      p.UserUsername,
+                                      p.Title,
+                                      p.Content,
+                                      p.CreatedAt,
+                                      Likes = _db.Likes.Count(l => l.PostId == p.Id),
+                                      IsLikedByMe = _db.Likes.Any(l => l.PostId == p.Id && l.UserId == me)
+                                  })
+                                  .ToListAsync();
 
             var postIds = postRows.Select(r => r.Id).ToList();
-
-            /* ---------- second query: replies ---------- */
             var replyRows = await _db.Replies
-                .Where(r => postIds.Contains(r.PostId!.Value))
-                .OrderBy(r => r.CreatedAt)
-                .Select(r => new ReplyDto
-                (
-                    r.Id,
-                    r.PostId!.Value,
-                    r.UserId,
-                    r.UserUsername,
-                    r.Content,
-                    r.CreatedAt,
-                    r.UserId == me || isAdmin
-                ))
-                .ToListAsync();
+                                     .Where(r => postIds.Contains(r.PostId!.Value))
+                                     .OrderBy(r => r.CreatedAt)
+                                     .Select(r => new ReplyDto(
+                                         r.Id, r.PostId!.Value, r.UserId, r.UserUsername,
+                                         r.Content, r.CreatedAt, r.UserId == me || isAdmin))
+                                     .ToListAsync();
 
-            /* ---------- stitch ---------- */
-            var posts = postRows.Select(p => new PostDto
-            (
-                p.Id,
-                p.UserId,
-                p.Title,
-                p.UserUsername,
-                p.Content,
-                p.CreatedAt,
-                p.Likes,
-                p.IsLikedByMe,
+            return postRows.Select(p => new PostDto(
+                p.Id, p.UserId, p.Title, p.UserUsername, p.Content, p.CreatedAt,
+                p.Likes, p.IsLikedByMe,
                 replyRows.Where(r => r.PostId == p.Id).ToList(),
-                p.UserId == me || isAdmin
-            ));
-
-            return posts;
+                p.UserId == me || isAdmin));
         }
 
 

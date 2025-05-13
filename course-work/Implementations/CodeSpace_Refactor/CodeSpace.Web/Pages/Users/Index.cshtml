@@ -6,11 +6,20 @@
     ViewData["Title"] = "Users";
 }
 <h2>Registered users</h2>
+<form id="searchForm" class="mb-3">
+    <div class="input-group">
+        <input type="text" id="searchUsername" class="form-control" placeholder="Username">
+        <input type="text" id="searchEmail" class="form-control" placeholder="Email">
+        <button type="submit" class="btn btn-primary">Search</button>
+        <button type="button" id="resetSearch" class="btn btn-secondary">Reset</button>
+    </div>
+</form>
+
 <table class="table" id="usersTable">
     <thead>
         <tr>
             <th>Id</th>
-            <th>User name</th>
+            <th>Username</th>
             <th>Email</th>
             <th>Admin</th>
             <th style="width:130px;"></th>  @* actions *@

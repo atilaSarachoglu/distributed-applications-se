@@ -16,10 +16,22 @@ public class UsersController : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = "AdminOnly")]
-    public async Task<ActionResult<IEnumerable<UserDto>>> GetAll()
-        => await _db.Users
-                     .Select(u => new UserDto(u.Id, u.Username, u.IsAdmin))
-                     .ToListAsync();
+    public async Task<ActionResult<IEnumerable<UserDto>>> GetAll(
+    [FromQuery] string? username,
+    [FromQuery] string? email)
+    {
+        var q = _db.Users.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(username))
+            q = q.Where(u => u.Username.Contains(username));
+
+        if (!string.IsNullOrWhiteSpace(email))
+            q = q.Where(u => u.Email != null && u.Email.Contains(email));
+
+        return await q.Select(u => new UserDto(u.Id, u.Username, u.Email, u.IsAdmin))
+                      .ToListAsync();
+    }
+
 
     [HttpPut("{id:int}")]
     [Authorize(Policy = "AdminOnly")]
