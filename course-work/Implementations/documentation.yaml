@@ -1,110 +1,322 @@
-openapi: 3.0.3
+openapi: 3.0.0
 info:
-  title: Just Girly Things – API
-  description: |-
-    **Курсова задача – Домашна работа №1**
-    Пълна документация на услугите за малка социална мрежа.
-
-    Всички защитени крайни точки използват JWT (Bearer) авторизация.
-  version: "1.1.0"
-  contact:
-    name: Екип Just Girly Things
+  title: JustGirlyThings API
+  version: "1.0.0"
+  description: |
+    REST-style backend that powers the **JustGirlyThings** social feed.
+    JWT Bearer authentication is required for all mutating operations;
+    read-only endpoints are public unless otherwise noted.
 servers:
-  - url: https://localhost:64706
-    description: Локален dev сървър (.NET 6 Kestrel)
+  - url: http://localhost:64706
 
-# ---------------------------------------------------------------------------
-# TAGS
-# ---------------------------------------------------------------------------
-tags:
-  - name: Authentication
-    description: Регистрация и вписване
-  - name: Feed
-    description: Емисия и постове
-  - name: Replies
-    description: Отговори под пост
-  - name: Users
-    description: Управление на потребители (само за администратори)
+paths:
+  /api/Auth/register:
+    post:
+      summary: Register a new account
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "200":
+          description: Account created – returns an auth token and user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "409": { description: Username already taken }
+        "422": { description: Validation errors }
 
-# ---------------------------------------------------------------------------
-# COMPONENTS
-# ---------------------------------------------------------------------------
+  /api/Auth/login:
+    post:
+      summary: Log in and receive a JWT token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Logged-in successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401": { description: Invalid credentials }
+        "422": { description: Validation errors }
+
+  /api/Feed:
+    get:
+      summary: Retrieve the public feed
+      tags: [Feed]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: orderBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, likes]
+            default: createdAt
+        - name: searchTitle
+          in: query
+          schema: { type: string }
+        - name: searchContent
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PostDto"
+
+    post:
+      summary: Create a post
+      tags: [Feed]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePostRequest"
+      responses:
+        "200": { description: Post created }
+        "401": { description: Unauthorized }
+        "422": { description: Validation errors }
+
+  /api/Feed/{id}/like:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      summary: Like a post
+      tags: [Feed]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Post liked }
+        "400": { description: Already liked }
+        "401": { description: Unauthorized }
+    delete:
+      summary: Unlike a post
+      tags: [Feed]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Post un-liked }
+        "401": { description: Unauthorized }
+
+  /api/Feed/{id}/reply:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      summary: Reply to a post
+      tags: [Feed]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReplyRequest"
+      responses:
+        "200": { description: Reply added }
+        "401": { description: Unauthorized }
+        "422": { description: Validation errors }
+
+  /api/Feed/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      summary: Update a post
+      tags: [Feed]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePostRequest"
+      responses:
+        "204": { description: Updated – no content }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "404": { description: Post not found }
+        "422": { description: Validation errors }
+    delete:
+      summary: Delete a post
+      tags: [Feed]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204": { description: Deleted – no content }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "404": { description: Post not found }
+
+  /api/Replies/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      summary: Update a reply
+      tags: [Replies]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReplyRequest"
+      responses:
+        "204": { description: Updated – no content }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "404": { description: Reply not found }
+        "422": { description: Validation errors }
+    delete:
+      summary: Delete a reply
+      tags: [Replies]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204": { description: Deleted – no content }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "404": { description: Reply not found }
+
+  /api/Users:
+    get:
+      summary: List users (admin only)
+      tags: [Users]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: username
+          in: query
+          schema: { type: string }
+        - name: email
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: List of users
+          headers:
+            X-Total-Count:
+              description: Total records available
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserDto"
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+
+    put:
+      summary: Update a user
+      tags: [Users]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "204": { description: Updated – no content }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "404": { description: User not found }
+        "422": { description: Validation errors }
+
+    delete:
+      summary: Delete a user
+      tags: [Users]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Deleted – no content }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "404": { description: User not found }
+
 components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+
   securitySchemes:
-    BearerAuth:
+    bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: >-
-        Използвайте JWT токена, върнат при `/api/Auth/login` или `/api/Auth/register`,
-        като стойност на `Authorization: Bearer <token>`.
-
-  parameters:
-    PostId:
-      name: postId
-      in: path
-      required: true
-      schema: { type: integer, minimum: 1 }
-      description: Идентификатор на пост
-    ReplyId:
-      name: replyId
-      in: path
-      required: true
-      schema: { type: integer, minimum: 1 }
-      description: Идентификатор на отговор
-    UserId:
-      name: userId
-      in: path
-      required: true
-      schema: { type: integer, minimum: 1 }
-      description: Идентификатор на потребител
 
   schemas:
-    # ------------ AUTH -------------
-    RegisterRequest:
-      type: object
-      required: [username, password, email]
-      properties:
-        username: { type: string, minLength: 3, maxLength: 32 }
-        password: { type: string, minLength: 4, maxLength: 64 }
-        email: { type: string, format: email }
-
     LoginRequest:
       type: object
       required: [username, password]
       properties:
-        username: { type: string }
-        password: { type: string }
+        username: { type: string, maxLength: 50 }
+        password: { type: string, maxLength: 64 }
+
+    RegisterRequest:
+      type: object
+      required: [username, password, email]
+      properties:
+        username: { type: string, maxLength: 50 }
+        password: { type: string, maxLength: 64 }
+        email: { type: string, format: email, maxLength: 255 }
 
     LoginResponse:
       type: object
       properties:
-        token: { type: string, description: JWT Bearer токен }
+        token: { type: string }
         username: { type: string }
         isAdmin: { type: boolean }
         userId: { type: integer }
 
-    # ------------- FEED & REPLIES -------------
-    CreatePostRequest:
+    PostDto:
       type: object
-      required: [title, content]
       properties:
-        title: { type: string, minLength: 1, maxLength: 120 }
-        content: { type: string, minLength: 1, maxLength: 5000 }
-
-    UpdatePostRequest:
-      allOf:
-        - $ref: "#/components/schemas/CreatePostRequest"
-
-    CreateReplyRequest:
-      type: object
-      required: [content]
-      properties:
-        content: { type: string, minLength: 1, maxLength: 2000 }
-
-    UpdateReplyRequest:
-      allOf:
-        - $ref: "#/components/schemas/CreateReplyRequest"
+        id: { type: integer }
+        userId: { type: integer }
+        title: { type: string }
+        userUsername: { type: string }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+        likes: { type: integer }
+        isLikedByMe: { type: boolean }
+        replies:
+          type: array
+          items: { $ref: "#/components/schemas/ReplyDto" }
+        canEdit: { type: boolean }
 
     ReplyDto:
       type: object
@@ -115,28 +327,48 @@ components:
         userUsername: { type: string }
         content: { type: string }
         createdAt: { type: string, format: date-time }
+        canEdit: { type: boolean }
 
-    PostDto:
+    CreatePostRequest:
       type: object
+      required: [title, content]
       properties:
-        id: { type: integer }
-        userId: { type: integer }
-        userUsername: { type: string }
-        title: { type: string }
-        content: { type: string }
-        createdAt: { type: string, format: date-time }
-        likes: { type: integer }
-        isLikedByMe: { type: boolean }
-        replies:
-          type: array
-          items: { $ref: "#/components/schemas/ReplyDto" }
+        title: { type: string, maxLength: 15 }
+        content: { type: string, maxLength: 1000 }
 
-    # ------------- USERS -------------
+    CreateReplyRequest:
+      type: object
+      required: [postId, content]
+      properties:
+        postId: { type: integer }
+        content: { type: string, maxLength: 1000 }
+
+    UpdatePostRequest:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, maxLength: 1000 }
+
+    UpdateReplyRequest:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, maxLength: 600 }
+
     UpdateUserRequest:
       type: object
+      required: [username, isAdmin]
       properties:
-        email: { type: string, format: email }
-        password: { type: string, minLength: 4, maxLength: 64 }
+        username: { type: string, maxLength: 60 }
+        email:
+          type: string
+          format: email
+          maxLength: 100
+          nullable: true
+        password:
+          type: string
+          maxLength: 100
+          nullable: true
         isAdmin: { type: boolean }
 
     UserDto:
@@ -144,240 +376,8 @@ components:
       properties:
         id: { type: integer }
         username: { type: string }
-        email: { type: string, format: email }
+        email:
+          type: string
+          format: email
+          nullable: true
         isAdmin: { type: boolean }
-        createdAt: { type: string, format: date-time }
-
-    # ------------- ERROR -------------
-    Error:
-      type: object
-      properties:
-        message: { type: string }
-
-# ---------------------------------------------------------------------------
-# PATHS
-# ---------------------------------------------------------------------------
-paths:
-  # ---------- AUTHENTICATION ----------
-  /api/Auth/register:
-    post:
-      tags: [Authentication]
-      summary: Регистриране на нов потребител
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/RegisterRequest" }
-      responses:
-        "201":
-          description: Успешна регистрация – връща JWT и данни на потребителя
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/LoginResponse" }
-        "409":
-          description: Потребителското име е заето
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Error" }
-
-  /api/Auth/login:
-    post:
-      tags: [Authentication]
-      summary: Вписване
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/LoginRequest" }
-      responses:
-        "200":
-          description: Успешно вписване
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/LoginResponse" }
-        "401":
-          description: Невалидни данни за вход
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Error" }
-
-  # ---------- FEED ----------
-  /api/Feed:
-    get:
-      tags: [Feed]
-      summary: Връща последните 20 поста (с брой лайкове и отговори)
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/PostDto" }
-    post:
-      tags: [Feed]
-      summary: Създаване на нов пост
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/CreatePostRequest" }
-      responses:
-        "201": { description: Създадено }
-        "400":
-          description: Липсващо или невалидно съдържание
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Error" }
-
-  /api/Feed/{postId}:
-    parameters:
-      - $ref: "#/components/parameters/PostId"
-    get:
-      tags: [Feed]
-      summary: Връща детайлите за пост
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/PostDto" }
-        "404": { description: Постът не е намерен }
-    put:
-      tags: [Feed]
-      summary: Актуализиране на пост (собственик или админ)
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UpdatePostRequest" }
-      responses:
-        "204": { description: Актуализирано }
-        "403": { description: Без право за промяна }
-        "404": { description: Постът не е намерен }
-    delete:
-      tags: [Feed]
-      summary: Изтриване на пост (собственик или админ)
-      security:
-        - BearerAuth: []
-      responses:
-        "204": { description: Изтрито }
-        "403": { description: Без право за триене }
-        "404": { description: Постът не е намерен }
-
-  /api/Feed/{postId}/like:
-    parameters:
-      - $ref: "#/components/parameters/PostId"
-    post:
-      tags: [Feed]
-      summary: Харесване на пост
-      security:
-        - BearerAuth: []
-      responses:
-        "204": { description: Харесано }
-        "400": { description: Вече е харесано }
-    delete:
-      tags: [Feed]
-      summary: Премахване на харесване
-      security:
-        - BearerAuth: []
-      responses:
-        "204": { description: Отхаресано }
-        "404": { description: Няма такъв лайк }
-
-  /api/Feed/{postId}/reply:
-    parameters:
-      - $ref: "#/components/parameters/PostId"
-    post:
-      tags: [Replies]
-      summary: Създаване на отговор
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/CreateReplyRequest" }
-      responses:
-        "201": { description: Отговорът е създаден }
-        "400": { description: Липсващо съдържание }
-
-  # ---------- REPLIES ----------
-  /api/Replies/{replyId}:
-    parameters:
-      - $ref: "#/components/parameters/ReplyId"
-    put:
-      tags: [Replies]
-      summary: Актуализиране на отговор (собственик или админ)
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UpdateReplyRequest" }
-      responses:
-        "204": { description: Актуализирано }
-        "403": { description: Без право за промяна }
-        "404": { description: Не е намерено }
-    delete:
-      tags: [Replies]
-      summary: Изтриване на отговор (собственик или админ)
-      security:
-        - BearerAuth: []
-      responses:
-        "204": { description: Изтрито }
-        "403": { description: Без право за триене }
-        "404": { description: Не е намерено }
-
-  # ---------- USERS (ADMIN) ----------
-  /api/Users:
-    get:
-      tags: [Users]
-      summary: Връща списък с всички потребители (админ)
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/UserDto" }
-        "403": { description: Не сте администратор }
-
-  /api/Users/{userId}:
-    parameters:
-      - $ref: "#/components/parameters/UserId"
-    put:
-      tags: [Users]
-      summary: Актуализиране на потребител (админ)
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UpdateUserRequest" }
-      responses:
-        "204": { description: Актуализирано }
-        "403": { description: Не сте администратор }
-        "404": { description: Потребителят не е намерен }
-    delete:
-      tags: [Users]
-      summary: Изтриване на потребител (админ)
-      security:
-        - BearerAuth: []
-      responses:
-        "204": { description: Изтрито }
-        "403": { description: Не сте администратор }
-        "404": { description: Потребителят не е намерен }
