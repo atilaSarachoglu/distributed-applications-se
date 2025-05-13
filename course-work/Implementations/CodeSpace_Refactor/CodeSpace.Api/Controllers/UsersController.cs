@@ -18,8 +18,13 @@ public class UsersController : ControllerBase
     [Authorize(Policy = "AdminOnly")]
     public async Task<ActionResult<IEnumerable<UserDto>>> GetAll(
     [FromQuery] string? username,
-    [FromQuery] string? email)
+    [FromQuery] string? email,
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 10)
     {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 10 : pageSize;
+
         var q = _db.Users.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(username))
@@ -28,7 +33,13 @@ public class UsersController : ControllerBase
         if (!string.IsNullOrWhiteSpace(email))
             q = q.Where(u => u.Email != null && u.Email.Contains(email));
 
-        return await q.Select(u => new UserDto(u.Id, u.Username, u.Email, u.IsAdmin))
+        var total = await q.CountAsync();
+        Response.Headers.Add("X-Total-Count", total.ToString());
+        Response.Headers.Add("Access-Control-Expose-Headers", "X-Total-Count");
+
+        return await q.Skip((page - 1) * pageSize)
+                      .Take(pageSize)
+                      .Select(u => new UserDto(u.Id, u.Username, u.Email, u.IsAdmin))
                       .ToListAsync();
     }
 

@@ -23,9 +23,11 @@ namespace CodeSpace.Api.Controllers
 
         [HttpGet]
         public async Task<IEnumerable<PostDto>> GetFeed(
-     [FromQuery] int page = 1,
-     [FromQuery] int pageSize = 20,
-     [FromQuery] string orderBy = "createdAt")            // createdAt|likes
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string orderBy = "createdAt",            // createdAt|likes
+            [FromQuery] string? searchTitle = null,
+            [FromQuery] string? searchContent = null)
         {
             page = page < 1 ? 1 : page;
             pageSize = pageSize < 1 ? 20 : pageSize;
@@ -37,6 +39,13 @@ namespace CodeSpace.Api.Controllers
 
             /* ---------- base query ---------- */
             var q = _db.Posts.AsQueryable();
+
+            // Apply search filters
+            if (!string.IsNullOrWhiteSpace(searchTitle))
+                q = q.Where(p => p.Title.Contains(searchTitle));
+
+            if (!string.IsNullOrWhiteSpace(searchContent))
+                q = q.Where(p => p.Content.Contains(searchContent));
 
             q = orderBy switch
             {

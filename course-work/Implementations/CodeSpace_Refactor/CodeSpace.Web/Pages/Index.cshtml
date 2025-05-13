@@ -1,6 +1,6 @@
 ﻿@page
 @{
-    Layout = "_Layout";
+    ViewData["Title"] = "Home page";
 }
 
 <!-- ============ GUEST VIEW ============ -->
@@ -13,7 +13,6 @@
 
 <!-- ============ AUTHENTICATED VIEW ============ -->
 <div id="userView" style="display:none">
-
     <!-- welcome -->
     <p class="system-text" id="welcome-back-text"></p>
 
@@ -37,10 +36,391 @@
         </div>
     </form>
 
+    <!-- search form -->
+    <div class="search-form mb-4">
+        <form id="searchForm" class="row g-3">
+            <div class="col-md-5">
+                <input type="text" class="form-control" id="searchTitle" placeholder="Search by title...">
+            </div>
+            <div class="col-md-5">
+                <input type="text" class="form-control" id="searchContent" placeholder="Search by content...">
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100">Search</button>
+            </div>
+            <div class="col-md-1">
+                <button type="button" id="resetSearch" class="btn btn-secondary w-100">Reset</button>
+            </div>
+        </form>
+    </div>
+
     <!-- feed -->
     <div class="posts" id="postsContainer"></div>
     <div id="pagination" class="pagination-container"></div>
 </div>
+
+@section Scripts {
+    <script src="~/js/site.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            /********** CONFIG **********/
+            const apiBase = 'https://localhost:64706/api';   // API base URL
+            const jwt = sessionStorage.getItem('jwt');
+            const username = sessionStorage.getItem('user');
+            const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` };
+            const qs = sel => document.querySelector(sel);
+
+            /********** PAGER STATE **********/
+            let curPage = 1;
+            let pageSize = 10;
+            let totalPosts = 0;
+
+            /********** AUTH GATE **********/
+            if (!jwt) {
+                qs('#guestView').style.display = 'block';
+            } else {
+                qs('#userView').style.display = 'block';
+                qs('#welcome-back-text').textContent = `Welcome back, @@${username}.`;
+                loadFeed();
+            }
+
+            /********** LOAD FEED **********/
+            async function loadFeed(searchTitle = '', searchContent = '') {
+                try {
+                    console.log('JWT Token:', jwt);
+                    console.log('Headers:', headers);
+                    const queryParams = new URLSearchParams();
+                    queryParams.append('page', curPage);
+                    queryParams.append('pageSize', pageSize);
+                    queryParams.append('orderBy', 'createdAt');
+                    if (searchTitle) queryParams.append('searchTitle', searchTitle);
+                    if (searchContent) queryParams.append('searchContent', searchContent);
+
+                    const url = `${apiBase}/Feed?${queryParams}`;
+                    console.log('Request URL:', url);
+
+                    const res = await fetch(url, { headers });
+                    console.log('Response status:', res.status);
+                    const totalCountHeader = res.headers.get('X-Total-Count');
+                    console.log('Total posts from header:', totalCountHeader);
+
+                    totalPosts = parseInt(totalCountHeader || '0', 10);
+                    console.log('Parsed total posts:', totalPosts);
+
+                    if (!res.ok) {
+                        console.error('Failed to load feed:', res.status);
+                        return;
+                    }
+
+                    const posts = await res.json();
+                    console.log('Received posts:', posts.length);
+
+                    const cont = qs('#postsContainer');
+                    cont.innerHTML = '';
+                    posts.forEach(p => cont.appendChild(renderPost(p)));
+                    renderPager();
+                } catch (err) {
+                    console.error('Error loading feed:', err);
+                    const cont = qs('#postsContainer');
+                    cont.innerHTML = '<p class="error-message">Failed to load feed. Please try again later.</p>';
+                }
+            }
+
+            /********** PAGER **********/
+            function renderPager() {
+                const paginationContainer = qs('#pagination');
+                if (!paginationContainer) {
+                    console.error('Pagination container not found!');
+                    return;
+                }
+
+                paginationContainer.innerHTML = '';
+
+                const totalPages = Math.ceil(totalPosts / pageSize);
+                console.log('Pagination calculation:', {
+                    totalPosts,
+                    pageSize,
+                    curPage,
+                    totalPages
+                });
+
+                if (totalPages <= 1) {
+                    console.log('No pagination needed - only one page');
+                    return;
+                }
+
+                // Create pagination info
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'pagination-info';
+                infoDiv.textContent = `Page ${curPage} of ${totalPages} (${totalPosts} total posts)`;
+                paginationContainer.appendChild(infoDiv);
+
+                // Create buttons container
+                const buttonsDiv = document.createElement('div');
+                buttonsDiv.className = 'pagination-buttons';
+
+                // First page button
+                const firstBtn = document.createElement('button');
+                firstBtn.className = 'pagination-button';
+                firstBtn.textContent = '«';
+                firstBtn.disabled = curPage === 1;
+                firstBtn.onclick = () => { curPage = 1; loadFeed(); };
+                buttonsDiv.appendChild(firstBtn);
+
+                // Previous page button
+                const prevBtn = document.createElement('button');
+                prevBtn.className = 'pagination-button';
+                prevBtn.textContent = '‹';
+                prevBtn.disabled = curPage === 1;
+                prevBtn.onclick = () => { curPage--; loadFeed(); };
+                buttonsDiv.appendChild(prevBtn);
+
+                // Page numbers
+                const startPage = Math.max(1, curPage - 2);
+                const endPage = Math.min(totalPages, startPage + 4);
+
+                for (let i = startPage; i <= endPage; i++) {
+                    const pageBtn = document.createElement('button');
+                    pageBtn.className = 'pagination-button';
+                    pageBtn.textContent = i;
+                    pageBtn.disabled = i === curPage;
+                    pageBtn.onclick = () => { curPage = i; loadFeed(); };
+                    if (i === curPage) {
+                        pageBtn.style.backgroundColor = '#007bff';
+                        pageBtn.style.color = 'white';
+                        pageBtn.style.borderColor = '#007bff';
+                    }
+                    buttonsDiv.appendChild(pageBtn);
+                }
+
+                // Next page button
+                const nextBtn = document.createElement('button');
+                nextBtn.className = 'pagination-button';
+                nextBtn.textContent = '›';
+                nextBtn.disabled = curPage === totalPages;
+                nextBtn.onclick = () => { curPage++; loadFeed(); };
+                buttonsDiv.appendChild(nextBtn);
+
+                // Last page button
+                const lastBtn = document.createElement('button');
+                lastBtn.className = 'pagination-button';
+                lastBtn.textContent = '»';
+                lastBtn.disabled = curPage === totalPages;
+                lastBtn.onclick = () => { curPage = totalPages; loadFeed(); };
+                buttonsDiv.appendChild(lastBtn);
+
+                paginationContainer.appendChild(buttonsDiv);
+            }
+
+            /********** RENDER POST **********/
+            function renderPost(post) {
+                const frag = qs('#postTmpl').content.cloneNode(true);
+                const me = Number(sessionStorage.getItem('userid'));
+                const isAdmin = sessionStorage.getItem('admin') === 'true';
+                const iOwnPost = post.userId === me;
+
+                frag.querySelector('.postTitle').textContent = post.title;
+                frag.querySelector('.postUsername').textContent = `Posted by @@${post.userUsername}`;
+                frag.querySelector('.postContent').textContent = post.content;
+                frag.querySelector('.postLikes').textContent = post.likes;
+                frag.querySelector('.postDate').textContent = new Date(post.createdAt).toLocaleString();
+
+                /* ---------- LIKE ---------- */
+                const likeForm = frag.querySelector('.likeForm');
+                const likeBtn = frag.querySelector('.likeBtn');
+
+                if (post.isLikedByMe) {
+                    likeBtn.textContent = 'Unlike';
+                    likeForm.dataset.method = 'DELETE';
+                } else {
+                    likeBtn.textContent = 'Like';
+                    likeForm.dataset.method = 'POST';
+                }
+
+                likeForm.addEventListener('submit', async e => {
+                    e.preventDefault();
+                    const method = likeForm.dataset.method;
+                    await fetch(`${apiBase}/Feed/${post.id}/like`, { method, headers });
+                    loadFeed();
+                });
+
+                /* ---------- DELETE BUTTON ---------- */
+                if (isAdmin || iOwnPost) {
+                    const del = document.createElement('button');
+                    del.textContent = 'Delete Post';
+                    del.className = 'deletePostBtn';
+                    del.onclick = async () => {
+                        await fetch(`${apiBase}/Feed/${post.id}`, { method: 'DELETE', headers });
+                        loadFeed();
+                    };
+                    frag.querySelector('.post-actions-right').appendChild(del);
+                }
+
+                /* ---------- EDIT POST ---------- */
+                const editPostBtn = frag.querySelector('.editPostBtn');
+                const editPostForm = frag.querySelector('.editPostForm');
+                const editPostInput = frag.querySelector('.editPostInput');
+                const cancelEditPost = frag.querySelector('.cancelEditPost');
+
+                if (isAdmin || iOwnPost) {
+                    editPostBtn.style.display = 'inline-block';
+                }
+
+                editPostBtn?.addEventListener('click', e => {
+                    e.preventDefault();
+                    editPostInput.value = post.content;
+                    editPostForm.style.display = 'block';
+                    editPostBtn.style.display = 'none';
+                });
+
+                cancelEditPost?.addEventListener('click', () => {
+                    editPostForm.style.display = 'none';
+                    editPostBtn.style.display = 'inline-block';
+                });
+
+                editPostForm?.addEventListener('submit', async e => {
+                    e.preventDefault();
+                    const newText = editPostInput.value.trim();
+                    if (!newText || newText === post.content) {
+                        cancelEditPost.click();
+                        return;
+                    }
+                    await fetch(`${apiBase}/Feed/${post.id}`, {
+                        method: 'PUT',
+                        headers,
+                        body: JSON.stringify({ content: newText })
+                    });
+                    loadFeed();
+                });
+
+                /* ---------- REPLIES ---------- */
+                const repliesDiv = frag.querySelector('.replies');
+
+                post.replies.forEach(rep => {
+                    const repFrag = qs('#replyTmpl').content.cloneNode(true);
+
+                    repFrag.querySelector('.replyUsername').textContent = `Replied by @@${rep.userUsername}`;
+                    repFrag.querySelector('.replyContent').textContent = rep.content;
+                    repFrag.querySelector('.replyDate').textContent = new Date(rep.createdAt).toLocaleString();
+
+                    const iOwnReply = rep.userId === me;
+
+                    /* DELETE REPLY */
+                    if (isAdmin || iOwnReply) {
+                        const del = document.createElement('button');
+                        del.textContent = 'Delete Reply';
+                        del.className = 'deleteReplyBtn';
+                        del.onclick = async () => {
+                            await fetch(`${apiBase}/Replies/${rep.id}`, { method: 'DELETE', headers });
+                            loadFeed();
+                        };
+                        repFrag.querySelector('.reply-actions').appendChild(del);
+                    }
+
+                    /* EDIT REPLY */
+                    const editReplyBtn = repFrag.querySelector('.editReplyBtn');
+                    const editReplyForm = repFrag.querySelector('.editReplyForm');
+                    const editReplyInput = repFrag.querySelector('.editReplyInput');
+                    const cancelEditReply = repFrag.querySelector('.cancelEditReply');
+
+                    if (isAdmin || iOwnReply) {
+                        editReplyBtn.style.display = 'inline-block';
+                    }
+
+                    editReplyBtn?.addEventListener('click', e => {
+                        e.preventDefault();
+                        editReplyInput.value = rep.content;
+                        editReplyForm.style.display = 'block';
+                        editReplyBtn.style.display = 'none';
+                    });
+
+                    cancelEditReply?.addEventListener('click', () => {
+                        editReplyForm.style.display = 'none';
+                        editReplyBtn.style.display = 'inline-block';
+                    });
+
+                    editReplyForm?.addEventListener('submit', async e => {
+                        e.preventDefault();
+                        const newText = editReplyInput.value.trim();
+                        if (!newText || newText === rep.content) {
+                            cancelEditReply.click();
+                            return;
+                        }
+                        await fetch(`${apiBase}/Replies/${rep.id}`, {
+                            method: 'PUT',
+                            headers,
+                            body: JSON.stringify({ content: newText })
+                        });
+                        loadFeed();
+                    });
+
+                    repliesDiv.appendChild(repFrag);
+                });
+
+                /* ---------- ADD REPLY ---------- */
+                frag.querySelector('.replyForm').addEventListener('submit', async e => {
+                    e.preventDefault();
+                    const txt = e.target.querySelector('.replyInput').value.trim();
+                    if (!txt) return;
+
+                    await fetch(`${apiBase}/Feed/${post.id}/reply`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ content: txt })
+                    });
+                    loadFeed();
+                });
+
+                return frag;
+            }
+
+            /********** CREATE POST **********/
+            qs('#createPostForm')?.addEventListener('submit', async e => {
+                e.preventDefault();
+                const title = qs('#newPostTitle').value.trim();
+                const body = qs('#newPostBody').value.trim();
+                if (!title || !body) {
+                    qs('#createPostErr').textContent = 'Both fields required';
+                    return;
+                }
+
+                const res = await fetch(`${apiBase}/Feed`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ title, content: body })
+                });
+
+                if (res.ok) {
+                    qs('#newPostTitle').value = '';
+                    qs('#newPostBody').value = '';
+                    loadFeed();
+                } else {
+                    qs('#createPostErr').textContent = 'Error creating post';
+                }
+            });
+
+            // Add search form handler
+            document.getElementById('searchForm')?.addEventListener('submit', e => {
+                e.preventDefault();
+                const searchTitle = document.getElementById('searchTitle').value.trim();
+                const searchContent = document.getElementById('searchContent').value.trim();
+                curPage = 1; // Reset to first page on new search
+                loadFeed(searchTitle, searchContent);
+            });
+
+            // Add reset button handler
+            document.getElementById('resetSearch')?.addEventListener('click', () => {
+                document.getElementById('searchTitle').value = '';
+                document.getElementById('searchContent').value = '';
+                curPage = 1; // Reset to first page on reset
+                loadFeed();
+            });
+
+            // Initial load
+            document.addEventListener('DOMContentLoaded', () => loadFeed());
+        });
+    </script>
+}
 
 <style>
     .pagination-container {
@@ -111,12 +491,12 @@
         <br />
 
         <div class="post-actions">
-            <form class="likeForm"><button type="submit" class="likeBtn">Like</button></form>
-            <button type="button" class="editPostBtn" style="display:none">Edit Post</button>
-            <form class="replyForm">
-                <textarea class="replyInput"></textarea>
-                <input type="submit" value="Reply" />
-            </form>
+            <div class="post-actions-left">
+                <form class="likeForm"><button type="submit" class="likeBtn">Like</button></form>
+            </div>
+            <div class="post-actions-right">
+                <button type="button" class="editPostBtn" style="display:none">Edit Post</button>
+            </div>
         </div>
 
         <!-- inline post editor -->
@@ -127,6 +507,12 @@
         </form>
 
         <div class="replies"></div>
+
+        <!-- Reply form -->
+        <form class="replyForm">
+            <textarea class="replyInput" placeholder="Write a reply..."></textarea>
+            <input type="submit" value="Reply" />
+        </form>
     </div>
 </template>
 
@@ -141,7 +527,9 @@
         <div class="reply-date">
             <p>Written on: <span class="replyDate"></span></p>
         </div>
-        <button type="button" class="editReplyBtn" style="display:none">Edit Reply</button>
+        <div class="reply-actions">
+            <button type="button" class="editReplyBtn" style="display:none">Edit Reply</button>
+        </div>
 
         <!-- inline reply editor -->
         <form class="editReplyForm" style="display:none">
@@ -151,345 +539,3 @@
         </form>
     </div>
 </template>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        /********** CONFIG **********/
-        const apiBase = 'https://localhost:64706/api';   // API base URL
-        const jwt = sessionStorage.getItem('jwt');
-        const username = sessionStorage.getItem('user');
-        const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` };
-        const qs = sel => document.querySelector(sel);
-
-        /********** PAGER STATE **********/
-        let curPage = 1;
-        let pageSize = 10;
-        let totalPosts = 0;
-
-        /********** AUTH GATE **********/
-        if (!jwt) {
-            qs('#guestView').style.display = 'block';
-        } else {
-            qs('#userView').style.display = 'block';
-            qs('#welcome-back-text').textContent = `Welcome back, @@${username}.`;
-            loadFeed();
-        }
-
-        /********** LOAD FEED **********/
-        async function loadFeed() {
-            try {
-                console.log('JWT Token:', jwt);
-                console.log('Headers:', headers);
-                const url = `${apiBase}/Feed?page=${curPage}&pageSize=${pageSize}&orderBy=createdAt`;
-                console.log('Request URL:', url);
-
-                const res = await fetch(url, { headers });
-                console.log('Response status:', res.status);
-
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    console.error('Error response:', errorText);
-                    throw new Error(`HTTP error! status: ${res.status}, details: ${errorText}`);
-                }
-
-                // Get all response headers for debugging
-                console.log('All response headers:', Object.fromEntries([...res.headers.entries()]));
-
-                const totalCountHeader = res.headers.get('X-Total-Count');
-                console.log('Raw total count header:', totalCountHeader);
-
-                totalPosts = totalCountHeader ? parseInt(totalCountHeader, 10) : 0;
-                console.log('Parsed total posts:', totalPosts);
-
-                const posts = await res.json();
-                console.log('Received posts:', posts.length);
-
-                // If we got posts but no total count, use the length as a fallback
-                if (totalPosts === 0 && posts.length > 0) {
-                    totalPosts = posts.length;
-                    console.log('Using posts length as total count:', totalPosts);
-                }
-
-                const cont = qs('#postsContainer');
-                cont.innerHTML = '';
-                posts.forEach(p => cont.appendChild(renderPost(p)));
-                renderPager();
-            } catch (error) {
-                console.error('Error loading feed:', error);
-                const cont = qs('#postsContainer');
-                cont.innerHTML = '<p class="error-message">Failed to load feed. Please try again later.</p>';
-            }
-        }
-
-        /********** PAGER **********/
-        function renderPager() {
-            const paginationContainer = qs('#pagination');
-            if (!paginationContainer) {
-                console.error('Pagination container not found!');
-                return;
-            }
-
-            paginationContainer.innerHTML = '';
-
-            console.log('Pagination calculation:', {
-                totalPosts,
-                pageSize,
-                curPage,
-                totalPages: Math.ceil(totalPosts / pageSize)
-            });
-
-            const totalPages = Math.ceil(totalPosts / pageSize);
-            if (totalPages <= 1) {
-                console.log('No pagination needed - only one page');
-                return;
-            }
-
-            // Create pagination info
-            const infoDiv = document.createElement('div');
-            infoDiv.className = 'pagination-info';
-            infoDiv.textContent = `Page ${curPage} of ${totalPages} (${totalPosts} total posts)`;
-            paginationContainer.appendChild(infoDiv);
-
-            // Create buttons container
-            const buttonsDiv = document.createElement('div');
-            buttonsDiv.className = 'pagination-buttons';
-
-            // First page button
-            const firstBtn = document.createElement('button');
-            firstBtn.className = 'pagination-button';
-            firstBtn.textContent = '«';
-            firstBtn.disabled = curPage === 1;
-            firstBtn.onclick = () => { curPage = 1; loadFeed(); };
-            buttonsDiv.appendChild(firstBtn);
-
-            // Previous page button
-            const prevBtn = document.createElement('button');
-            prevBtn.className = 'pagination-button';
-            prevBtn.textContent = '‹';
-            prevBtn.disabled = curPage === 1;
-            prevBtn.onclick = () => { curPage--; loadFeed(); };
-            buttonsDiv.appendChild(prevBtn);
-
-            // Page numbers
-            const startPage = Math.max(1, curPage - 2);
-            const endPage = Math.min(totalPages, startPage + 4);
-
-            for (let i = startPage; i <= endPage; i++) {
-                const pageBtn = document.createElement('button');
-                pageBtn.className = 'pagination-button';
-                pageBtn.textContent = i;
-                pageBtn.disabled = i === curPage;
-                pageBtn.onclick = () => { curPage = i; loadFeed(); };
-                if (i === curPage) {
-                    pageBtn.style.backgroundColor = '#007bff';
-                    pageBtn.style.color = 'white';
-                    pageBtn.style.borderColor = '#007bff';
-                }
-                buttonsDiv.appendChild(pageBtn);
-            }
-
-            // Next page button
-            const nextBtn = document.createElement('button');
-            nextBtn.className = 'pagination-button';
-            nextBtn.textContent = '›';
-            nextBtn.disabled = curPage === totalPages;
-            nextBtn.onclick = () => { curPage++; loadFeed(); };
-            buttonsDiv.appendChild(nextBtn);
-
-            // Last page button
-            const lastBtn = document.createElement('button');
-            lastBtn.className = 'pagination-button';
-            lastBtn.textContent = '»';
-            lastBtn.disabled = curPage === totalPages;
-            lastBtn.onclick = () => { curPage = totalPages; loadFeed(); };
-            buttonsDiv.appendChild(lastBtn);
-
-            paginationContainer.appendChild(buttonsDiv);
-        }
-
-        /********** RENDER POST **********/
-        function renderPost(post) {
-            const frag = qs('#postTmpl').content.cloneNode(true);
-            const me = Number(sessionStorage.getItem('userid'));
-            const isAdmin = sessionStorage.getItem('admin') === 'true';
-            const iOwnPost = post.userId === me;
-
-            frag.querySelector('.postTitle').textContent = post.title;
-            frag.querySelector('.postUsername').textContent = `Posted by @@${post.userUsername}`;
-            frag.querySelector('.postContent').textContent = post.content;
-            frag.querySelector('.postLikes').textContent = post.likes;
-            frag.querySelector('.postDate').textContent = new Date(post.createdAt).toLocaleString();
-
-            /* ---------- LIKE ---------- */
-            const likeForm = frag.querySelector('.likeForm');
-            const likeBtn = frag.querySelector('.likeBtn');
-
-            if (post.isLikedByMe) {
-                likeBtn.textContent = 'Unlike';
-                likeForm.dataset.method = 'DELETE';
-            } else {
-                likeBtn.textContent = 'Like';
-                likeForm.dataset.method = 'POST';
-            }
-
-            likeForm.addEventListener('submit', async e => {
-                e.preventDefault();
-                const method = likeForm.dataset.method;
-                await fetch(`${apiBase}/Feed/${post.id}/like`, { method, headers });
-                loadFeed();
-            });
-
-            /* ---------- DELETE BUTTON ---------- */
-            if (isAdmin || iOwnPost) {
-                const del = document.createElement('button');
-                del.textContent = 'Delete Post';
-                del.onclick = async () => {
-                    await fetch(`${apiBase}/Feed/${post.id}`, { method: 'DELETE', headers });
-                    loadFeed();
-                };
-                frag.querySelector('.post-date').append(del);
-            }
-
-            /* ---------- EDIT POST ---------- */
-            const editPostBtn = frag.querySelector('.editPostBtn');
-            const editPostForm = frag.querySelector('.editPostForm');
-            const editPostInput = frag.querySelector('.editPostInput');
-            const cancelEditPost = frag.querySelector('.cancelEditPost');
-
-            if (isAdmin || iOwnPost) {
-                editPostBtn.style.display = 'inline-block';
-            }
-
-            editPostBtn?.addEventListener('click', e => {
-                e.preventDefault();
-                editPostInput.value = post.content;
-                editPostForm.style.display = 'block';
-                editPostBtn.style.display = 'none';
-            });
-
-            cancelEditPost?.addEventListener('click', () => {
-                editPostForm.style.display = 'none';
-                editPostBtn.style.display = 'inline-block';
-            });
-
-            editPostForm?.addEventListener('submit', async e => {
-                e.preventDefault();
-                const newText = editPostInput.value.trim();
-                if (!newText || newText === post.content) {
-                    cancelEditPost.click();
-                    return;
-                }
-                await fetch(`${apiBase}/Feed/${post.id}`, {
-                    method: 'PUT',
-                    headers,
-                    body: JSON.stringify({ content: newText })
-                });
-                loadFeed();
-            });
-
-            /* ---------- REPLIES ---------- */
-            const repliesDiv = frag.querySelector('.replies');
-
-            post.replies.forEach(rep => {
-                const repFrag = qs('#replyTmpl').content.cloneNode(true);
-
-                repFrag.querySelector('.replyUsername').textContent = `Replied by @@${rep.userUsername}`;
-                repFrag.querySelector('.replyContent').textContent = rep.content;
-                repFrag.querySelector('.replyDate').textContent = new Date(rep.createdAt).toLocaleString();
-
-                const iOwnReply = rep.userId === me;
-
-                /* DELETE REPLY */
-                if (isAdmin || iOwnReply) {
-                    const del = document.createElement('button');
-                    del.textContent = 'Delete Reply';
-                    del.onclick = async () => {
-                        await fetch(`${apiBase}/Replies/${rep.id}`, { method: 'DELETE', headers });
-                        loadFeed();
-                    };
-                    repFrag.querySelector('.reply').append(del);
-                }
-
-                /* EDIT REPLY */
-                const editReplyBtn = repFrag.querySelector('.editReplyBtn');
-                const editReplyForm = repFrag.querySelector('.editReplyForm');
-                const editReplyInput = repFrag.querySelector('.editReplyInput');
-                const cancelEditReply = repFrag.querySelector('.cancelEditReply');
-
-                if (isAdmin || iOwnReply) {
-                    editReplyBtn.style.display = 'inline-block';
-                }
-
-                editReplyBtn?.addEventListener('click', e => {
-                    e.preventDefault();
-                    editReplyInput.value = rep.content;
-                    editReplyForm.style.display = 'block';
-                    editReplyBtn.style.display = 'none';
-                });
-
-                cancelEditReply?.addEventListener('click', () => {
-                    editReplyForm.style.display = 'none';
-                    editReplyBtn.style.display = 'inline-block';
-                });
-
-                editReplyForm?.addEventListener('submit', async e => {
-                    e.preventDefault();
-                    const newText = editReplyInput.value.trim();
-                    if (!newText || newText === rep.content) {
-                        cancelEditReply.click();
-                        return;
-                    }
-                    await fetch(`${apiBase}/Replies/${rep.id}`, {
-                        method: 'PUT',
-                        headers,
-                        body: JSON.stringify({ content: newText })
-                    });
-                    loadFeed();
-                });
-
-                repliesDiv.appendChild(repFrag);
-            });
-
-            /* ---------- ADD REPLY ---------- */
-            frag.querySelector('.replyForm').addEventListener('submit', async e => {
-                e.preventDefault();
-                const txt = e.target.querySelector('.replyInput').value.trim();
-                if (!txt) return;
-
-                await fetch(`${apiBase}/Feed/${post.id}/reply`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({ content: txt })
-                });
-                loadFeed();
-            });
-
-            return frag;
-        }
-
-        /********** CREATE POST **********/
-        qs('#createPostForm')?.addEventListener('submit', async e => {
-            e.preventDefault();
-            const title = qs('#newPostTitle').value.trim();
-            const body = qs('#newPostBody').value.trim();
-            if (!title || !body) {
-                qs('#createPostErr').textContent = 'Both fields required';
-                return;
-            }
-
-            const res = await fetch(`${apiBase}/Feed`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ title, content: body })
-            });
-
-            if (res.ok) {
-                qs('#newPostTitle').value = '';
-                qs('#newPostBody').value = '';
-                loadFeed();
-            } else {
-                qs('#createPostErr').textContent = 'Error creating post';
-            }
-        });
-    });
-</script>
