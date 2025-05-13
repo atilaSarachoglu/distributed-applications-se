@@ -9,6 +9,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="6.0.35" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CodeSpace.Common\CodeSpace.Common.csproj" />
+    <ProjectReference Include="..\JustGirlyThings.Common\JustGirlyThings.Common.csproj" />
   </ItemGroup>
 </Project>

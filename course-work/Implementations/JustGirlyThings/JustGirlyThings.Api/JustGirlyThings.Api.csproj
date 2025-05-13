@@ -10,7 +10,7 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CodeSpace.Common\CodeSpace.Common.csproj" />
+    <ProjectReference Include="..\JustGirlyThings.Common\JustGirlyThings.Common.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="appsettings.Development.json">
